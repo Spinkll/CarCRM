@@ -19,10 +19,14 @@ export class CreateCarDto {
   vin: string;
 
   @IsString()
-  @IsOptional()
-  plate?: string;
+  @IsNotEmpty()
+  plate: string;
 
   @IsInt()
   @IsNotEmpty()
   mileage: number;
+
+  @IsString()
+  @IsNotEmpty()
+  color: string
 }

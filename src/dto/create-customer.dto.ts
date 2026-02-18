@@ -1,13 +1,12 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
-import { UserRole } from 'generated/prisma/enums';
 
-export class CreateEmployeeDto {
+export class CreateCustomerDto {
   @IsEmail()
   email: string;
 
+  @IsOptional()  
   @IsString()
   @MinLength(8)
-  @IsOptional()  
   password?: string;
 
   @IsString()
@@ -20,7 +19,4 @@ export class CreateEmployeeDto {
 
   @IsString()
   phone: string;
-
-  @IsEnum(UserRole, { message: 'Роль має бути: MECHANIC або MANAGER' })
-  role: UserRole ; 
 }

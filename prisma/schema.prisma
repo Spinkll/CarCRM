@@ -9,122 +9,151 @@ datasource db {
 }
 
 model User {
-  id                 Int            @id @default(autoincrement())
-  email              String         @unique
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
   password           String
-  phone              String         @unique
-  role               UserRole       @default(CLIENT)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  phone              String   @unique
+  role               UserRole @default(CLIENT)
   firstName          String
   lastName           String
   hashedRefreshToken String?
-  cars               Car[]
-  managedOrders      Order[]        @relation("ManagerOrders")
-  mechanicOrders     Order[]        @relation("MechanicOrders")
-  historyEntries     OrderHistory[]
-  assignedTasks      Task[]
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cars           Car[]
+  managedOrders  Order[]        @relation("ManagerOrders")
+  mechanicOrders Order[]        @relation("MechanicOrders")
+  historyEntries OrderHistory[]
+  assignedTasks  Task[]
 }
 
 model Car {
-  id        Int      @id @default(autoincrement())
-  brand     String
-  model     String
-  year      Int
-  vin       String
-  plate     String?
-  mileage   Int      @default(0)
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  id      Int    @id @default(autoincrement())
+  brand   String
+  model   String
+  year    Int
+  vin     String @unique
+  plate   String
+  mileage Int    @default(0)
+  color   String
+
+  deletedAt DateTime?
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   orders    Order[]
 }
 
 model Order {
-  id          Int            @id @default(autoincrement())
-  status      OrderStatus    @default(PENDING)
+  id          Int         @id @default(autoincrement())
+  status      OrderStatus @default(PENDING)
   mileage     Int
   description String?
-  totalAmount Decimal        @default(0) @db.Decimal(10, 2)
-  carId       Int
-  managerId   Int?
-  mechanicId  Int?
+  totalAmount Decimal     @default(0) @db.Decimal(10, 2)
+
+  carId Int
+  car   Car @relation(fields: [carId], references: [id])
+
+  managerId Int?
+  manager   User? @relation("ManagerOrders", fields: [managerId], references: [id])
+
+  mechanicId Int?
+  mechanic   User? @relation("MechanicOrders", fields: [mechanicId], references: [id])
+
   scheduledAt DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  car         Car            @relation(fields: [carId], references: [id])
-  manager     User?          @relation("ManagerOrders", fields: [managerId], references: [id])
-  mechanic    User?          @relation("MechanicOrders", fields: [mechanicId], references: [id])
-  history     OrderHistory[]
-  items       OrderItem[]
-  payments    Payment[]
-  tasks       Task[]
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  history  OrderHistory[]
+  items    OrderItem[]
+  payments Payment[]
+  tasks    Task[]
 }
 
 model OrderItem {
-  id        Int      @id @default(autoincrement())
-  orderId   Int
+  id      Int   @id @default(autoincrement())
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
   serviceId Int?
-  partId    Int?
-  quantity  Int      @default(1)
-  price     Decimal  @db.Decimal(10, 2)
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  part      Part?    @relation(fields: [partId], references: [id])
   service   Service? @relation(fields: [serviceId], references: [id])
 
-  @@unique([orderId, serviceId, partId])
+  partId Int?
+  part   Part? @relation(fields: [partId], references: [id])
+
+  name     String
+  quantity Int     @default(1)
+  price    Decimal @db.Decimal(10, 2)
 }
 
 model Service {
-  id          Int         @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
-  price       Decimal     @db.Decimal(10, 2)
+  price       Decimal @db.Decimal(10, 2)
   durationMin Int?
-  orderItems  OrderItem[]
+
+  deletedAt DateTime?
+
+  orderItems OrderItem[]
 }
 
 model Part {
-  id         Int         @id @default(autoincrement())
-  name       String
-  sku        String      @unique
-  price      Decimal     @db.Decimal(10, 2)
-  stock      Int         @default(0)
+  id    Int     @id @default(autoincrement())
+  name  String
+  sku   String  @unique
+  price Decimal @db.Decimal(10, 2)
+  stock Int     @default(0)
+
+  deletedAt DateTime?
+
   orderItems OrderItem[]
 }
 
 model Payment {
   id      Int           @id @default(autoincrement())
   orderId Int
+  order   Order         @relation(fields: [orderId], references: [id])
   amount  Decimal       @db.Decimal(10, 2)
   method  PaymentMethod
   paidAt  DateTime      @default(now())
-  order   Order         @relation(fields: [orderId], references: [id])
 }
 
 model Task {
-  id          Int        @id @default(autoincrement())
-  orderId     Int
-  mechanicId  Int
+  id      Int   @id @default(autoincrement())
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id])
+
+  mechanicId Int
+  mechanic   User @relation(fields: [mechanicId], references: [id])
+
   description String
   status      TaskStatus @default(PENDING)
   scheduledAt DateTime?
   createdAt   DateTime   @default(now())
-  mechanic    User       @relation(fields: [mechanicId], references: [id])
-  order       Order      @relation(fields: [orderId], references: [id])
 }
 
 model OrderHistory {
-  id          Int      @id @default(autoincrement())
-  orderId     Int
+  id      Int   @id @default(autoincrement())
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
   changedById Int
-  action      String
-  oldValue    String?
-  newValue    String?
-  comment     String?
-  timestamp   DateTime @default(now())
-  changedBy   User     @relation(fields: [changedById], references: [id])
-  order       Order    @relation(fields: [orderId], references: [id])
+  changedBy   User @relation(fields: [changedById], references: [id])
+
+  action   String
+  oldValue String?
+  newValue String?
+  comment  String?
+
+  timestamp DateTime @default(now())
 }
 
 enum UserRole {

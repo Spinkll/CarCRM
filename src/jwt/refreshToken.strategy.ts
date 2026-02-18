@@ -14,15 +14,15 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refres
     });
   }
 
-  validate(req: Request, payload: any) {
-    const authHeader = req.get('Authorization');
-    
-    if (!authHeader) {
-      throw new ForbiddenException('Refresh token malformed');
-    }
+  async validate(req: Request, payload: any) {
+    const refreshToken = req.get('Authorization')
+      ?.replace('Bearer', '')
+      .trim();
 
-    const refreshToken = authHeader.replace('Bearer', '').trim();
-    
-    return { ...payload, refreshToken };
+    return {
+      id: payload.sub, 
+      role: payload.role,
+      refreshToken,
+    };
   }
 }

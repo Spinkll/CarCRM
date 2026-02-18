@@ -1,39 +1,46 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+// src/users/users.controller.ts
+import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CreateEmployeeDto } from 'src/dto/create-employee.dto';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { UsersService } from './users.service';
-import { UserRole } from 'generated/prisma/enums';
+import { RegisterDto } from 'src/dto/auth';
+import { CreateCustomerDto } from 'src/dto/create-customer.dto';
 
 @Controller('users')
 export class UsersController {
-    constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) { }
     
-    @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN']))
-    @Post('employees')
-    async createEmployee(@Body() dto: CreateEmployeeDto) {
-        return this.usersService.createEmployee(dto);
-    }
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN']))
+  @Post('employee')
+  async createEmployee(@Body() dto: CreateEmployeeDto) {
+    return this.usersService.createEmployee(dto);
+  }
 
-    @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
-    @Get('employees')
-    async getEmployees(@Query('role') roleQuery?: UserRole) {
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  @Get('employees')
+  async getEmployees(@Req() req) {
+    return this.usersService.findEmployees(); 
+  }
+
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN']))
+  @Delete(':id')
+  async deleteUser(@Req() req, @Param('id', ParseIntPipe) id: number) {
+    if (req.user.role !== 'ADMIN') throw new ForbiddenException();
+    return this.usersService.deleteUser(id);
+  }
+
+  // --- КЛІЄНТИ ---
+
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  @Post('customer')
+  async createCustomer(@Body() dto: CreateCustomerDto) {
+    return this.usersService.createCustomer(dto);
+  }
     
-        if (roleQuery) {
-            const normalizedRole = roleQuery.toUpperCase() as UserRole;
-
-            if (!Object.values(UserRole).includes(normalizedRole)) {
-         throw new BadRequestException(`Роль '${roleQuery}' не існує`);
-      }
-            return this.usersService.findAllByRoles([normalizedRole]);
-        }
-        return this.usersService.findAllByRoles([UserRole.MECHANIC, UserRole.MANAGER]);
-    }
-
-
-    @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
-    @Get('clients')
-    async getAllClients() {
-        return this.usersService.findAllByRoles([UserRole.CLIENT]);
-    }
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  @Get('customers')
+  async getCustomers() {
+    return this.usersService.findCustomers();
+  }
 }

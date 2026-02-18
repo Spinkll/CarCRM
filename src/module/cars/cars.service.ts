@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { UserRole } from 'generated/prisma/client';
 import { PrismaService } from 'src/db/prisma.service';
 import { CreateCarDto } from 'src/dto/create-car.dto';
 import { UpdateCarDto } from 'src/dto/update-car.dto';
@@ -17,9 +18,16 @@ export class CarsService {
     });
   }
 
-  async findAll(userId: number) {
+  async findAll(userId: number, role: UserRole) {
+    if (role === 'ADMIN' || role === 'MANAGER') {
+      return this.prisma.car.findMany({
+        include: { user: true }
+      });
+    }
     return this.prisma.car.findMany({
-      where: { userId },
+      where: {
+        userId: userId 
+      }
     });
   }
 

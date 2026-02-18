@@ -13,7 +13,10 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  async validate(payload: any) {
-    return payload; 
-  }
+ async validate(payload: any) {
+  return {
+    id: payload.sub,
+    role: payload.role,
+  };
+}
 }

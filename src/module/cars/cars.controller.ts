@@ -4,20 +4,19 @@ import { CreateCarDto } from 'src/dto/create-car.dto';
 import { UpdateCarDto } from 'src/dto/update-car.dto';
 import { AuthGuard } from '@nestjs/passport';
 
-@UseGuards(AuthGuard('jwt'))
 @Controller('cars')
+@UseGuards(AuthGuard('jwt'))
 export class CarsController {
   constructor(private readonly carsService: CarsService) {}
 
   @Post()
   create(@Req() req, @Body() createCarDto: CreateCarDto) {
-    // req.user.sub - это ID юзера из токена (Access Token)
     return this.carsService.create(req.user.sub, createCarDto);
   }
 
   @Get()
   findAll(@Req() req) {
-    return this.carsService.findAll(req.user.sub);
+    return this.carsService.findAll(req.user['id'], req.user.role);
   }
 
   @Get(':id')
