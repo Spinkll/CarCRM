@@ -17,7 +17,7 @@ export class UsersController {
     return this.usersService.createEmployee(dto);
   }
 
-  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN']))
   @Get('employees')
   async getEmployees(@Req() req) {
     return this.usersService.findEmployees(); 
@@ -38,7 +38,7 @@ export class UsersController {
     return this.usersService.createCustomer(dto);
   }
     
-  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER','MECHANIC']))
   @Get('customers')
   async getCustomers() {
     return this.usersService.findCustomers();
