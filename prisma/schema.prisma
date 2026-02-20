@@ -23,12 +23,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cars           Car[]
-  managedOrders  Order[]        @relation("ManagerOrders")
-  mechanicOrders Order[]        @relation("MechanicOrders")
-  historyEntries OrderHistory[]
-  assignedTasks  Task[]
-  notifications  Notification[]
+  cars            Car[]
+  managedOrders   Order[]          @relation("ManagerOrders")
+  mechanicOrders  Order[]          @relation("MechanicOrders")
+  historyEntries  OrderHistory[]
+  assignedTasks   Task[]
+  notifications   Notification[]
+  serviceRequests ServiceRequest[] @relation("ClientRequests")
 }
 
 model Car {
@@ -46,14 +47,35 @@ model Car {
   userId Int
   user   User @relation(fields: [userId], references: [id])
 
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  orders          Order[]
+  serviceRequests ServiceRequest[]
+}
+
+model ServiceRequest {
+  id          Int                  @id @default(autoincrement())
+  clientId    Int
+  client      User                 @relation("ClientRequests", fields: [clientId], references: [id])
+  carId       Int
+  car         Car                  @relation(fields: [carId], references: [id])
+  reason      String
+  description String?
+  status      ServiceRequestStatus @default(NEW)
+
+  orderId Int?   @unique
+  order   Order? @relation(fields: [orderId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  orders    Order[]
+
+  @@index([clientId])
+  @@index([status])
 }
 
 model Order {
   id          Int         @id @default(autoincrement())
-  status      OrderStatus @default(PENDING)
+  status      OrderStatus @default(CONFIRMED)
   mileage     Int
   description String?
   totalAmount Decimal     @default(0) @db.Decimal(10, 2)
@@ -67,7 +89,6 @@ model Order {
   mechanicId Int?
   mechanic   User? @relation("MechanicOrders", fields: [mechanicId], references: [id])
 
-  scheduledAt DateTime?
   completedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -75,10 +96,29 @@ model Order {
 
   deletedAt DateTime?
 
-  history  OrderHistory[]
-  items    OrderItem[]
-  payments Payment[]
-  tasks    Task[]
+  history        OrderHistory[]
+  items          OrderItem[]
+  payments       Payment[]
+  tasks          Task[]
+  appointments   Appointment[]
+  serviceRequest ServiceRequest?
+}
+
+model Appointment {
+  id           Int               @id @default(autoincrement())
+  orderId      Int
+  order        Order             @relation(fields: [orderId], references: [id])
+  scheduledAt  DateTime
+  estimatedMin Int?
+  status       AppointmentStatus @default(SCHEDULED)
+  note         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scheduledAt])
+  @@index([orderId])
+  @@index([status])
 }
 
 model OrderItem {
@@ -181,12 +221,27 @@ enum UserRole {
 }
 
 enum OrderStatus {
-  PENDING
   CONFIRMED
   IN_PROGRESS
   WAITING_PARTS
   COMPLETED
   PAID
+  CANCELLED
+}
+
+enum ServiceRequestStatus {
+  NEW
+  IN_REVIEW
+  PROCESSED
+  REJECTED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  ARRIVED
+  COMPLETED
+  NO_SHOW
   CANCELLED
 }
 

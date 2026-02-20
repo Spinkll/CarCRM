@@ -9,9 +9,11 @@ import { OrdersModule } from './module/orders/orders.module';
 import { MailModule } from './module/mail/mail.module';
 import { NotificationsModule } from './module/notifications/notifications.module';
 import { ConfigModule } from '@nestjs/config';
+import { ServiceRequestsModule } from './module/service-requests/service-requests.module';
+import { AppointmentsModule } from './module/appointments/appointments.module';
 
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule],
+  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule],
   controllers: [AppController],
   providers: [AppService],
 })

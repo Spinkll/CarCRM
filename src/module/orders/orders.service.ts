@@ -35,38 +35,44 @@ export class OrdersService {
     const currentMileage = dto.mileage || car.mileage;
 
     const order = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.order.create({
+      // 1. Створюємо саме замовлення (без scheduledAt і зі статусом CONFIRMED)
+      const createdOrder = await tx.order.create({
         data: {
           carId: dto.vehicleId,
           mileage: currentMileage,
           description: dto.description,
           totalAmount: 0,
-          status: 'PENDING',
-          scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+          status: 'CONFIRMED', // В схемі немає PENDING, тому ставимо CONFIRMED
         },
       });
 
+      // 2. Якщо користувач передав дату - створюємо запис у календарі (Appointment)
+      if (dto.scheduledAt) {
+        await tx.appointment.create({
+          data: {
+            orderId: createdOrder.id,
+            scheduledAt: new Date(dto.scheduledAt),
+            estimatedMin: 60, // Наприклад, 1 година за замовчуванням
+            status: 'SCHEDULED', // З AppointmentStatus
+          }
+        });
+      }
+
+      // 3. Записуємо історію
       await tx.orderHistory.create({
         data: {
-          orderId: created.id,
+          orderId: createdOrder.id,
           changedById: userId,
           action: 'ORDER_CREATED',
           comment: 'Замовлення створено через веб-інтерфейс',
         },
       });
 
-      return created;
-    });
+      
+      this.notifications.notifyByRoles(['ADMIN', 'MANAGER'], 'Нове замовлення', `Створено нове замовлення #${createdOrder.id}`, 'NEW_ORDER', createdOrder.id);
 
-    // Сповіщення адмінам та менеджерам
-    const carInfo = `${car.brand} ${car.model}`.trim();
-    this.notifications.notifyByRoles(
-      [UserRole.ADMIN, UserRole.MANAGER],
-      'Нове замовлення',
-      `Створено замовлення #${order.id} на ${carInfo}: ${dto.description}`,
-      'ORDER_CREATED',
-      order.id,
-    ).catch((e) => console.error('Помилка створення повідомлення:', e));
+      return createdOrder;
+    });
 
     return order;
   }
