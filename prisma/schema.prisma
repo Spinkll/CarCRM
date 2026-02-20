@@ -28,6 +28,7 @@ model User {
   mechanicOrders Order[]        @relation("MechanicOrders")
   historyEntries OrderHistory[]
   assignedTasks  Task[]
+  notifications  Notification[]
 }
 
 model Car {
@@ -36,7 +37,7 @@ model Car {
   model   String
   year    Int
   vin     String @unique
-  plate   String
+  plate   String @unique
   mileage Int    @default(0)
   color   String
 
@@ -71,6 +72,8 @@ model Order {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  deletedAt DateTime?
 
   history  OrderHistory[]
   items    OrderItem[]
@@ -154,6 +157,20 @@ model OrderHistory {
   comment  String?
 
   timestamp DateTime @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String
+  orderId   Int?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
 }
 
 enum UserRole {

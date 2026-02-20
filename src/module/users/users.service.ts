@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/db/prisma.service';
 import { RegisterDto } from 'src/dto/auth';
 import * as bcrypt from 'bcrypt';
@@ -187,6 +187,14 @@ if (existingUser) {
       }
       
     return user;
+  }
+
+  async findMechanics() {
+    try {
+      return await this.findAllByRoles([UserRole.MECHANIC]);
+    } catch (error) {
+      throw new InternalServerErrorException('Помилка при отриманні списку механіків');
+    }
   }
 
 

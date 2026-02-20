@@ -43,4 +43,10 @@ export class UsersController {
   async getCustomers() {
     return this.usersService.findCustomers();
   }
+
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  @Get('mechanics')
+  async getMechanics() {
+    return this.usersService.findMechanics();
+  }
 }

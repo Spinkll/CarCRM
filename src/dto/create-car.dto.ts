@@ -29,4 +29,8 @@ export class CreateCarDto {
   @IsString()
   @IsNotEmpty()
   color: string
+
+  @IsOptional()
+  @IsInt()
+  userId?: number;
 }

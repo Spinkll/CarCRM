@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Req, UseGuards } from '@nestjs/common';
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Patch, 
+  Param, 
+  Delete, 
+  ParseIntPipe, 
+  Req, 
+  UseGuards 
+} from '@nestjs/common';
 import { CarsService } from './cars.service';
 import { CreateCarDto } from 'src/dto/create-car.dto';
 import { UpdateCarDto } from 'src/dto/update-car.dto';
@@ -11,26 +22,39 @@ export class CarsController {
 
   @Post()
   create(@Req() req, @Body() createCarDto: CreateCarDto) {
-    return this.carsService.create(req.user.sub, createCarDto);
+    const userRole = req.user.role; 
+    const currentUserId = req.user.id;
+
+    let targetOwnerId = currentUserId;
+
+    if ((userRole === 'ADMIN' || userRole === 'MANAGER') && createCarDto.userId) {
+      targetOwnerId = createCarDto.userId;
+    } 
+    
+    return this.carsService.create(targetOwnerId, createCarDto);
   }
 
   @Get()
   findAll(@Req() req) {
-    return this.carsService.findAll(req.user['id'], req.user.role);
+    return this.carsService.findAll(req.user.id, req.user.role);
   }
 
   @Get(':id')
   findOne(@Req() req, @Param('id', ParseIntPipe) id: number) {
-    return this.carsService.findOne(req.user.sub, id);
+    return this.carsService.findOne(req.user.id, id, req.user.role);
   }
 
   @Patch(':id')
-  update(@Req() req, @Param('id', ParseIntPipe) id: number, @Body() updateCarDto: UpdateCarDto) {
-    return this.carsService.update(req.user.sub, id, updateCarDto);
+  update(
+    @Req() req, 
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() updateCarDto: UpdateCarDto
+  ) {
+    return this.carsService.update(req.user.id, id, updateCarDto, req.user.role);
   }
 
   @Delete(':id')
   remove(@Req() req, @Param('id', ParseIntPipe) id: number) {
-    return this.carsService.remove(req.user.sub, id);
+    return this.carsService.remove(req.user.id, id, req.user.role);
   }
 }

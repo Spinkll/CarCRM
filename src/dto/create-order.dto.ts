@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, IsInt, IsOptional, IsArray, IsNumber, IsEnum } from 'class-validator';
-import { OrderStatus } from '@prisma/client'; 
+import { IsString, IsNotEmpty, IsInt, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { OrderStatus } from '@prisma/client';
 
 export class CreateOrderDto {
   @IsInt()
@@ -10,21 +10,17 @@ export class CreateOrderDto {
   @IsNotEmpty()
   description: string;
 
-  @IsArray()
-  @IsOptional()
-  services?: string[];
-
-  @IsNumber()
-  @IsOptional()
-  totalCost?: number;
-  
   @IsInt()
   @IsOptional()
-  mileage?: number; 
-    
+  mileage?: number;
+
   @IsInt()
   @IsOptional()
   customerId?: number;
+
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
 }
 
 export class UpdateOrderStatusDto {

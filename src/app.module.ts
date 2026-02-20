@@ -7,11 +7,12 @@ import { PrismaModule } from './db/prisma.module';
 import { CarsModule } from './module/cars/cars.module';
 import { OrdersModule } from './module/orders/orders.module';
 import { MailModule } from './module/mail/mail.module';
+import { NotificationsModule } from './module/notifications/notifications.module';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule,OrdersModule,MailModule,ConfigModule],
+  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
