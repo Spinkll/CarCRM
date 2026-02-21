@@ -3,17 +3,17 @@ import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class MailService {
-  constructor(private mailerService: MailerService) {}
+    constructor(private mailerService: MailerService) { }
 
     async sendUserPassword(email: string, name: string, pass: string) {
-    
-    const loginUrl = 'http://169.254.96.210:3001/login'; 
-    const appName = 'WagGarage CRM';
 
-    await this.mailerService.sendMail({
-      to: email,
-      subject: `🔐 Дані для входу в ${appName}`,
-      html: `
+        const loginUrl = 'http://169.254.96.210:3001/login';
+        const appName = 'WagGarage CRM';
+
+        await this.mailerService.sendMail({
+            to: email,
+            subject: `🔐 Дані для входу в ${appName}`,
+            html: `
         <!DOCTYPE html>
         <html>
         <head>
@@ -76,6 +76,56 @@ export class MailService {
         </body>
         </html>
       `,
-    });
-  }
+        });
+    }
+
+    async sendPasswordReset(email: string, name: string, resetLink: string) {
+        const appName = 'WagGarage CRM';
+
+        await this.mailerService.sendMail({
+            to: email,
+            subject: `🔑 Відновлення пароля — ${appName}`,
+            html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+        </head>
+        <body style="margin: 0; padding: 20px; background-color: #f3f4f6;">
+            
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                
+                <div style="background-color: #dc2626; padding: 30px 20px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-family: sans-serif; font-size: 24px;">🔑 Відновлення пароля</h1>
+                </div>
+
+                <div style="padding: 40px 30px; color: #374151; font-family: sans-serif; line-height: 1.6;">
+                    <div style="font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #111827;">
+                        Вітаємо, ${name}! 👋
+                    </div>
+                    
+                    <p>Ми отримали запит на відновлення пароля для вашого облікового запису. Натисніть кнопку нижче, щоб встановити новий пароль:</p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${resetLink}" style="display: inline-block; background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                            Змінити пароль
+                        </a>
+                    </div>
+
+                    <p style="font-size: 14px; color: #6b7280;">⏰ Посилання дійсне протягом <strong>1 години</strong>. Якщо ви не запитували зміну пароля, просто проігноруйте цей лист.</p>
+                    
+                    <p style="font-size: 12px; color: #9ca3af; word-break: break-all; margin-top: 20px;">Якщо кнопка не працює, скопіюйте це посилання у браузер:<br>${resetLink}</p>
+                </div>
+
+                <div style="background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; font-family: sans-serif;">
+                    <p style="margin: 0;">Це автоматичний лист, будь ласка, не відповідайте на нього.</p>
+                    <p style="margin: 5px 0;">© 2026 ${appName}. Всі права захищено.</p>
+                </div>
+
+            </div>
+        </body>
+        </html>
+      `,
+        });
+    }
 }

@@ -1,9 +1,9 @@
-import { 
-  IsEmail, 
-  IsNotEmpty, 
-  IsString, 
-  MinLength, 
-  MaxLength, 
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  MaxLength,
   IsOptional,
   Matches
 } from 'class-validator';
@@ -36,5 +36,21 @@ export class RegisterDto {
 
   @IsString()
   @Matches(/^\+?[0-9]{10,15}$/, { message: 'Телефон має бути у форматі +380XXXXXXXXX' })
-  phone: string; 
+  phone: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail({}, { message: 'Некоректний формат email' })
+  @IsNotEmpty({ message: 'Email є обовʼязковим' })
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Токен є обовʼязковим' })
+  token: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Пароль має містити мінімум 8 символів' })
+  password: string;
 }

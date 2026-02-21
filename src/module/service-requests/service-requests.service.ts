@@ -1,19 +1,24 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/db/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ServiceRequestsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService
+  ) {}
 
-  // 1. Клиент создает заявку
+  // 1. Клієнт створює заявку
   async createRequest(clientId: number, carId: number, reason: string) {
-    // Проверяем, принадлежит ли машина клиенту
+    // Перевіряємо, чи належить машина клієнту
     const car = await this.prisma.car.findUnique({ where: { id: carId } });
     if (!car || car.userId !== clientId) {
       throw new BadRequestException('Автомобіль не знайдено або він не належить вам');
     }
 
-    return this.prisma.serviceRequest.create({
+    // ВИПРАВЛЕННЯ 1: Спочатку створюємо запис у БД
+    const request = await this.prisma.serviceRequest.create({
       data: {
         clientId,
         carId,
@@ -21,8 +26,19 @@ export class ServiceRequestsService {
         status: 'NEW',
       },
     });
+
+    // ПОТІМ відправляємо сповіщення адмінам/менеджерам
+    await this.notifications.notifyByRoles(
+      ['ADMIN', 'MANAGER'], 
+      'Нова заявка на сервіс', 
+      `Клієнт створив нову заявку для авто ${car.brand} ${car.model}. Причина: ${reason}`, 
+      'NEW_REQUEST'
+    );
+
+    return request;
   }
 
+  // 2. Отримати всі заявки
   async findAll() {
     return this.prisma.serviceRequest.findMany({
       include: {
@@ -33,7 +49,7 @@ export class ServiceRequestsService {
     });
   }
 
-  // 3. Получить заявки конкретного клиента
+  // 3. Отримати заявки конкретного клієнта
   async findByClient(clientId: number) {
     return this.prisma.serviceRequest.findMany({
       where: { clientId },
@@ -42,7 +58,7 @@ export class ServiceRequestsService {
     });
   }
 
-  // 4. ОДОБРИТЬ И ЗАПИСАТЬ (Транзакция)
+  // 4. ОДОБРИТИ ТА ЗАПИСАТИ (Транзакція)
   async approveAndSchedule(requestId: number, managerId: number, dto: { 
     scheduledAt: string; 
     estimatedMin?: number; 
@@ -60,7 +76,7 @@ export class ServiceRequestsService {
         throw new BadRequestException('Цю заявку вже опрацювали');
       }
 
-      // Создаем Заказ
+      // Створюємо Замовлення (Order)
       const order = await tx.order.create({
         data: {
           carId: request.carId,
@@ -72,17 +88,17 @@ export class ServiceRequestsService {
         }
       });
 
-      // Создаем Запись (Appointment) в календарь
+      // Створюємо Запис (Appointment) у календар
       await tx.appointment.create({
         data: {
           orderId: order.id,
           scheduledAt: new Date(dto.scheduledAt),
-          estimatedMin: dto.estimatedMin || 60, // По умолчанию 1 час
+          estimatedMin: dto.estimatedMin || 60, 
           status: 'SCHEDULED',
         }
       });
 
-      // Обновляем заявку
+      // Оновлюємо статус заявки
       await tx.serviceRequest.update({
         where: { id: requestId },
         data: {
@@ -91,23 +107,23 @@ export class ServiceRequestsService {
         }
       });
 
-      // История заказа
+      // Історія замовлення
       await tx.orderHistory.create({
         data: {
           orderId: order.id,
           changedById: managerId,
           action: 'ORDER_CREATED',
-          comment: `Заказ створений із заявки #${requestId}`
+          comment: `Замовлення створене із заявки #${requestId}`
         }
       });
 
-      // Уведомление клиенту (если есть notifications.service, можно вызвать его)
+      // Сповіщення клієнту про підтвердження візиту
       await tx.notification.create({
         data: {
           userId: request.clientId,
-          title: 'Заявка одобрена',
-          message: `Ваш визит назначен на ${new Date(dto.scheduledAt).toLocaleString('uk-UA')}`,
-          type: 'APPOINTMENT',
+          title: 'Вашу заявку схвалено!',
+          message: `Візит призначено на ${new Date(dto.scheduledAt).toLocaleString('uk-UA')}. Чекаємо на вас!`,
+          type: 'REQUEST_APPROVED',
           orderId: order.id
         }
       });
@@ -116,11 +132,23 @@ export class ServiceRequestsService {
     });
   }
 
-  // 5. Отклонить заявку
+  // 5. ВІДХИЛИТИ заявку
   async rejectRequest(requestId: number) {
-    return this.prisma.serviceRequest.update({
+    // ВИПРАВЛЕННЯ 2: Зберігаємо оновлену заявку в змінну, підтягуємо авто
+    const request = await this.prisma.serviceRequest.update({
       where: { id: requestId },
       data: { status: 'REJECTED' },
+      include: { car: true } 
     });
+
+    // Сповіщаємо клієнта, що його заявку відхилено
+    await this.notifications.create(
+      request.clientId,
+      'Заявку відхилено',
+      `Вашу заявку на обслуговування авто ${request.car.brand} ${request.car.model} було відхилено. Будь ласка, зв'яжіться з нами для уточнення деталей.`,
+      'REQUEST_REJECTED'
+    );
+
+    return request;
   }
 }

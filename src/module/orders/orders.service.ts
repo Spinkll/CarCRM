@@ -23,7 +23,7 @@ export class OrdersService {
     private notifications: NotificationsService,
   ) { }
 
-  // --- СОЗДАНИЕ ЗАКАЗА (клиент) ---
+  // --- СТВОРЕННЯ ЗАМОВЛЕННЯ ---
   async create(userId: number, role: UserRole, dto: CreateOrderDto) {
     const car = await this.prisma.car.findUnique({ where: { id: dto.vehicleId } });
     if (!car) throw new NotFoundException('Автомобіль не знайдено');
@@ -35,30 +35,27 @@ export class OrdersService {
     const currentMileage = dto.mileage || car.mileage;
 
     const order = await this.prisma.$transaction(async (tx) => {
-      // 1. Створюємо саме замовлення (без scheduledAt і зі статусом CONFIRMED)
       const createdOrder = await tx.order.create({
         data: {
           carId: dto.vehicleId,
           mileage: currentMileage,
           description: dto.description,
           totalAmount: 0,
-          status: 'CONFIRMED', // В схемі немає PENDING, тому ставимо CONFIRMED
+          status: 'CONFIRMED', 
         },
       });
 
-      // 2. Якщо користувач передав дату - створюємо запис у календарі (Appointment)
       if (dto.scheduledAt) {
         await tx.appointment.create({
           data: {
             orderId: createdOrder.id,
             scheduledAt: new Date(dto.scheduledAt),
-            estimatedMin: 60, // Наприклад, 1 година за замовчуванням
-            status: 'SCHEDULED', // З AppointmentStatus
+            estimatedMin: 60, 
+            status: 'SCHEDULED', 
           }
         });
       }
 
-      // 3. Записуємо історію
       await tx.orderHistory.create({
         data: {
           orderId: createdOrder.id,
@@ -68,16 +65,24 @@ export class OrdersService {
         },
       });
 
-      
-      this.notifications.notifyByRoles(['ADMIN', 'MANAGER'], 'Нове замовлення', `Створено нове замовлення #${createdOrder.id}`, 'NEW_ORDER', createdOrder.id);
-
       return createdOrder;
     });
+
+    // 🔔 СПОВІЩЕННЯ: Якщо замовлення створює менеджер або адмін, сповіщаємо клієнта
+    if (role === 'ADMIN' || role === 'MANAGER') {
+      this.notifications.create(
+        car.userId,
+        'Нове замовлення',
+        `Для вашого авто ${car.brand} створено замовлення #${order.id}.`,
+        'ORDER_CREATED',
+        order.id
+      ).catch(e => console.error('Помилка сповіщення:', e));
+    }
 
     return order;
   }
 
-  // --- СПИСОК ЗАКАЗОВ (с фильтрацией) ---
+  // --- СПИСОК ЗАМОВЛЕНЬ (без змін) ---
   async findAll(userId: number, role: UserRole, filters?: {
     status?: OrderStatus;
     mechanicId?: number;
@@ -91,15 +96,10 @@ export class OrdersService {
       items: true,
     };
 
-    // Базовый where для фильтрации
     const where: any = {};
 
-    if (filters?.status) {
-      where.status = filters.status;
-    }
-    if (filters?.mechanicId) {
-      where.mechanicId = filters.mechanicId;
-    }
+    if (filters?.status) where.status = filters.status;
+    if (filters?.mechanicId) where.mechanicId = filters.mechanicId;
     if (filters?.from || filters?.to) {
       where.createdAt = {};
       if (filters.from) where.createdAt.gte = new Date(filters.from);
@@ -107,33 +107,21 @@ export class OrdersService {
     }
 
     if (role === UserRole.ADMIN || role === UserRole.MANAGER) {
-      return this.prisma.order.findMany({
-        where,
-        include: includeOptions,
-        orderBy: { createdAt: 'desc' },
-      });
+      return this.prisma.order.findMany({ where, include: includeOptions, orderBy: { createdAt: 'desc' } });
     }
 
     if (role === UserRole.MECHANIC) {
-      return this.prisma.order.findMany({
-        where: { ...where, mechanicId: userId },
-        include: includeOptions,
-        orderBy: { createdAt: 'desc' },
-      });
+      return this.prisma.order.findMany({ where: { ...where, mechanicId: userId }, include: includeOptions, orderBy: { createdAt: 'desc' } });
     }
 
-    // CLIENT — только свои заказы
     return this.prisma.order.findMany({
-      where: {
-        ...where,
-        car: { userId: userId },
-      },
+      where: { ...where, car: { userId: userId } },
       include: includeOptions,
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // --- ДЕТАЛИ ЗАКАЗА ---
+  // --- ДЕТАЛІ ЗАМОВЛЕННЯ (без змін) ---
   async findOne(userId: number, role: UserRole, id: number) {
     const order = await this.prisma.order.findUnique({
       where: { id },
@@ -149,32 +137,28 @@ export class OrdersService {
     });
 
     if (!order) throw new NotFoundException('Замовлення не знайдено');
-
-    if (role === UserRole.CLIENT && order.car.userId !== userId) {
-      throw new ForbiddenException('Доступ заборонено');
-    }
+    if (role === UserRole.CLIENT && order.car.userId !== userId) throw new ForbiddenException('Доступ заборонено');
 
     return order;
   }
 
-  // --- СМЕНА СТАТУСА ---
+  // --- ЗМІНА СТАТУСУ ---
   async updateStatus(userId: number, id: number, dto: UpdateOrderStatusDto) {
-    const order = await this.prisma.order.findUnique({ where: { id } });
+    const order = await this.prisma.order.findUnique({ 
+      where: { id },
+      include: { car: { select: { userId: true } } } 
+    });
     if (!order) throw new NotFoundException('Замовлення не знайдено');
 
     const oldStatus = order.status;
 
     const updatedOrder = await this.prisma.$transaction(async (tx) => {
       const data: any = { status: dto.status };
-
       if (dto.status === OrderStatus.COMPLETED && !order.completedAt) {
         data.completedAt = new Date();
       }
 
-      const result = await tx.order.update({
-        where: { id },
-        data,
-      });
+      const result = await tx.order.update({ where: { id }, data });
 
       await tx.orderHistory.create({
         data: {
@@ -190,25 +174,28 @@ export class OrdersService {
       return result;
     });
 
-    // Сповіщення клієнту (власнику авто)
-    const orderWithCar = await this.prisma.order.findUnique({
-      where: { id },
-      include: { car: { select: { userId: true } } },
-    });
-    if (orderWithCar) {
-      this.notifications.create(
-        orderWithCar.car.userId,
+    // 🔔 СПОВІЩЕННЯ: Формуємо список отримувачів (Клієнт + Команда)
+    const notifyIds = new Set<number>();
+    notifyIds.add(order.car.userId); // Клієнт
+    if (updatedOrder.managerId) notifyIds.add(updatedOrder.managerId); // Менеджер
+    if (updatedOrder.mechanicId) notifyIds.add(updatedOrder.mechanicId); // Механік
+
+    notifyIds.delete(userId); // Не сповіщати того, хто сам змінив статус!
+
+    if (notifyIds.size > 0) {
+      this.notifications.notifyMany(
+        Array.from(notifyIds),
         'Статус замовлення змінено',
-        `Замовлення #${id}: ${STATUS_LABELS[dto.status] || dto.status}`,
+        `Замовлення #${id} перейшло у статус: ${STATUS_LABELS[dto.status] || dto.status}`,
         'STATUS_CHANGED',
         id,
-      ).catch((e) => console.error('Помилка створення повідомлення:', e));
+      ).catch((e) => console.error('Помилка масового сповіщення:', e));
     }
 
     return updatedOrder;
   }
 
-  // --- НАЗНАЧЕНИЕ МЕНЕДЖЕРА / МЕХАНИКА ---
+  // --- ПРИЗНАЧЕННЯ КОМАНДИ ---
   async assignOrder(userId: number, orderId: number, dto: AssignOrderDto) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -223,7 +210,6 @@ export class OrdersService {
       throw new BadRequestException('Вкажіть managerId або mechanicId');
     }
 
-    // Проверяем и загружаем новых сотрудников
     let newManager: { firstName: string; lastName: string } | null = null;
     let newMechanic: { firstName: string; lastName: string } | null = null;
 
@@ -251,17 +237,13 @@ export class OrdersService {
 
       if (dto.managerId && newManager) {
         updateData.managerId = dto.managerId;
-        const oldName = order.manager
-          ? `${order.manager.firstName} ${order.manager.lastName}`
-          : 'не призначено';
+        const oldName = order.manager ? `${order.manager.firstName} ${order.manager.lastName}` : 'не призначено';
         const newName = `${newManager.firstName} ${newManager.lastName}`;
         changes.push(`Менеджер: ${oldName} → ${newName}`);
       }
       if (dto.mechanicId && newMechanic) {
         updateData.mechanicId = dto.mechanicId;
-        const oldName = order.mechanic
-          ? `${order.mechanic.firstName} ${order.mechanic.lastName}`
-          : 'не призначено';
+        const oldName = order.mechanic ? `${order.mechanic.firstName} ${order.mechanic.lastName}` : 'не призначено';
         const newName = `${newMechanic.firstName} ${newMechanic.lastName}`;
         changes.push(`Механік: ${oldName} → ${newName}`);
       }
@@ -287,41 +269,40 @@ export class OrdersService {
       return result;
     });
 
-    // Сповіщення призначеним співробітникам
-    if (dto.managerId && newManager) {
+    // 🔔 СПОВІЩЕННЯ: Призначеним співробітникам (якщо вони не призначали самі себе)
+    if (dto.managerId && newManager && dto.managerId !== userId) {
       this.notifications.create(
         dto.managerId,
-        'Вас призначено менеджером',
+        'Нове призначення',
         `Вас призначено менеджером замовлення #${orderId}`,
         'ASSIGNMENT',
         orderId,
-      ).catch((e) => console.error('Помилка створення повідомлення:', e));
+      ).catch((e) => console.error('Помилка сповіщення менеджера:', e));
     }
-    if (dto.mechanicId && newMechanic) {
+    
+    if (dto.mechanicId && newMechanic && dto.mechanicId !== userId) {
       this.notifications.create(
         dto.mechanicId,
-        'Вас призначено механіком',
+        'Нове призначення',
         `Вас призначено механіком замовлення #${orderId}`,
         'ASSIGNMENT',
         orderId,
-      ).catch((e) => console.error('Помилка створення повідомлення:', e));
+      ).catch((e) => console.error('Помилка сповіщення механіка:', e));
     }
 
     return updatedOrder;
   }
 
-  // --- ДОБАВЛЕНИЕ ПОЗИЦИИ (услуга / запчасть) ---
+  // --- ДОДАВАННЯ ТА ВИДАЛЕННЯ ПОЗИЦІЙ (без змін логіки сповіщень) ---
   async addItem(userId: number, orderId: number, dto: CreateOrderItemDto) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Замовлення не знайдено');
 
-    // Проверяем существование услуги, если указана
     if (dto.serviceId) {
       const service = await this.prisma.service.findUnique({ where: { id: dto.serviceId } });
       if (!service) throw new NotFoundException('Послугу не знайдено');
     }
 
-    // Проверяем существование запчасти, если указана
     if (dto.partId) {
       const part = await this.prisma.part.findUnique({ where: { id: dto.partId } });
       if (!part) throw new NotFoundException('Запчастину не знайдено');
@@ -340,7 +321,6 @@ export class OrdersService {
         include: { service: true, part: true },
       });
 
-      // Пересчитываем totalAmount
       await this.recalcTotal(tx, orderId);
 
       await tx.orderHistory.create({
@@ -357,7 +337,6 @@ export class OrdersService {
     });
   }
 
-  // --- УДАЛЕНИЕ ПОЗИЦИИ ---
   async removeItem(userId: number, orderId: number, itemId: number) {
     const item = await this.prisma.orderItem.findFirst({
       where: { id: itemId, orderId },
@@ -367,7 +346,6 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       await tx.orderItem.delete({ where: { id: itemId } });
 
-      // Пересчитываем totalAmount
       await this.recalcTotal(tx, orderId);
 
       await tx.orderHistory.create({
@@ -384,13 +362,9 @@ export class OrdersService {
     });
   }
 
-  // --- ПЕРЕСЧЁТ TOTAL ---
   private async recalcTotal(tx: any, orderId: number) {
     const items = await tx.orderItem.findMany({ where: { orderId } });
-
-    const total = items.reduce((sum: number, item: any) => {
-      return sum + Number(item.price) * item.quantity;
-    }, 0);
+    const total = items.reduce((sum: number, item: any) => sum + Number(item.price) * item.quantity, 0);
 
     await tx.order.update({
       where: { id: orderId },
