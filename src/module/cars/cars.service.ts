@@ -33,20 +33,39 @@ export class CarsService {
     }
   }
 
+  
   async findAll(userId: number, role: UserRole) {
-    try {
-      if (role === 'ADMIN' || role === 'MANAGER') {
-        return await this.prisma.car.findMany({
-          include: { user: true },
-        });
-      }
-      return await this.prisma.car.findMany({
-        where: { userId: userId },
+   if (role === 'CLIENT') {
+      return this.prisma.car.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
       });
-    } catch (error) {
-      throw new InternalServerErrorException('Помилка при отриманні списку автомобілів');
     }
-  }
+
+   if (role === 'MECHANIC') {
+      return this.prisma.car.findMany({
+        where: {
+          orders: {
+            some: { mechanicId: userId }
+          }
+        },
+        include: {
+          user: { select: { firstName: true, lastName: true, phone: true } } 
+        },
+        distinct: ['id'], 
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    return this.prisma.car.findMany({
+      include: {
+        user: { select: { firstName: true, lastName: true, phone: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  
+  
+}
 
   async findOne(userId: number, carId: number, role: UserRole) {
     try {

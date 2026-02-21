@@ -68,7 +68,7 @@ export class OrdersController {
 
   // === ДОБАВЛЕНИЕ ПОЗИЦИИ В ЗАКАЗ (Admin / Manager) ===
   @Post(':id/items')
-  @UseGuards(new RolesGuard(['ADMIN', 'MANAGER']))
+  @UseGuards(new RolesGuard(['ADMIN', 'MANAGER','MECHANIC']))
   addItem(
     @Req() req,
     @Param('id', ParseIntPipe) id: number,
@@ -79,7 +79,7 @@ export class OrdersController {
 
   // === УДАЛЕНИЕ ПОЗИЦИИ ИЗ ЗАКАЗА (Admin / Manager) ===
   @Delete(':id/items/:itemId')
-  @UseGuards(new RolesGuard(['ADMIN', 'MANAGER']))
+  @UseGuards(new RolesGuard(['ADMIN', 'MANAGER','MECHANIC']))
   removeItem(
     @Req() req,
     @Param('id', ParseIntPipe) id: number,

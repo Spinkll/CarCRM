@@ -33,7 +33,29 @@ export class AppointmentsService {
         order: { car: { userId: clientId } }
       },
       include: {
-        order: { include: { car: true } }
+        order: { include: { car: true,mechanic: { select: { id: true, firstName: true, lastName: true } } }, },
+        
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+  }
+
+  async findByMechanic(mechanicId: number) {
+    return this.prisma.appointment.findMany({
+      where: {
+        order: { mechanicId: mechanicId } 
+      },
+      include: {
+        order: {
+          include: {
+            car: {
+              include: {
+                user: { select: { firstName: true, lastName: true, phone: true } }
+              }
+            },
+            mechanic: { select: { id: true, firstName: true, lastName: true } }
+          }
+        }
       },
       orderBy: { scheduledAt: 'asc' },
     });

@@ -10,18 +10,18 @@ import { RescheduleAppointmentDto } from 'src/dto/reschedule-appointment.dto';
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
-  // Отримати всі записи для календаря
   @Get()
   findAll(@Req() req) {
-    // Якщо це клієнт, віддаємо тільки його записи
     if (req.user.role === UserRole.CLIENT) {
       return this.appointmentsService.findByClient(req.user.id);
     }
-    // Адмінам, менеджерам та механікам віддаємо всі записи для календаря
+
+    if (req.user.role === UserRole.MECHANIC) {
+      return this.appointmentsService.findByMechanic(req.user.role)
+    }
     return this.appointmentsService.findAll();
   }
 
-  // Змінити статус (ARRIVED, COMPLETED, CANCELLED тощо)
   @Patch(':id/status')
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
@@ -30,7 +30,6 @@ export class AppointmentsController {
     return this.appointmentsService.updateStatus(id, dto.status);
   }
 
-  // Перенести запис (Drag & Drop в календарі на фронті)
   @Patch(':id/reschedule')
   reschedule(
     @Param('id', ParseIntPipe) id: number,

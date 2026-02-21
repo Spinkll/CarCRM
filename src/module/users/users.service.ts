@@ -46,11 +46,11 @@ if (existingUser) {
       },
     });
 
-      try {
-      await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
-    } catch (e) {
-      console.error(`Failed to send email to client ${user.email}:`, e);
-      }
+    //   try {
+    //   await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
+    // } catch (e) {
+    //   console.error(`Failed to send email to client ${user.email}:`, e);
+    //   }
       
     return user;
   }
@@ -134,11 +134,11 @@ if (existingUser) {
       },
     });
 
-    try {
-      await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
-    } catch (e) {
-      console.error(`Failed to send email to employee ${user.email}:`, e);
-    }
+    // try {
+    //   await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
+    // } catch (e) {
+    //   console.error(`Failed to send email to employee ${user.email}:`, e);
+    // }
 
     return user;
   }
