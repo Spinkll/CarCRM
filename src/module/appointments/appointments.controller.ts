@@ -17,7 +17,7 @@ export class AppointmentsController {
     }
 
     if (req.user.role === UserRole.MECHANIC) {
-      return this.appointmentsService.findByMechanic(req.user.role)
+      return this.appointmentsService.findByMechanic(req.user.id)
     }
     return this.appointmentsService.findAll();
   }

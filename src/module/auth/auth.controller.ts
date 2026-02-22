@@ -49,4 +49,10 @@ export class AuthController {
     
     return this.authService.verifyEmail(token);
   }
+
+  @UseGuards(AuthGuard('jwt')) 
+  @Post('resend-verification-email')
+  async resendVerificationEmail(@Req() req) {
+    return this.authService.resendVerificationEmail(req.user.id);
+  }
 }

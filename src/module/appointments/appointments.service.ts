@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { AppointmentStatus } from 'generated/prisma/enums';
 import { PrismaService } from 'src/db/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class AppointmentsService {
@@ -116,4 +117,6 @@ export class AppointmentsService {
 
     return updatedAppointment;
   }
+
+  
 }

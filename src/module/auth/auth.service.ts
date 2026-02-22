@@ -198,4 +198,35 @@ export class AuthService {
     return { message: 'Email успішно підтверджено' };
   }
 
+  async resendVerificationEmail(userId: number) {
+    const user = await this.usersService.findById(userId);
+    
+    if (!user) {
+      throw new BadRequestException('Користувача не знайдено');
+    }
+
+    if (user.isVerified) {
+      throw new BadRequestException('Ваш обліковий запис вже верифіковано');
+    }
+
+    const verifyToken = await this.jwtService.signAsync(
+      { sub: user.id, email: user.email },
+      {
+        secret: this.configService.get('JWT_VERIFY_SECRET') || this.configService.get('JWT_ACCESS_SECRET'),
+        expiresIn: '24h',
+      },
+    );
+
+    
+
+    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3001';
+    const verifyLink = `${frontendUrl}/verify-email?token=${verifyToken}`;
+
+    await this.mailService.sendVerificationEmail(user.email, user.firstName, verifyLink).catch(e => {
+      console.error('Помилка відправки листа верифікації', e);
+    });
+
+    return { message: 'Лист з інструкціями відправлено повторно. Будь ласка, перевірте вашу пошту.' };
+  }
+
 }

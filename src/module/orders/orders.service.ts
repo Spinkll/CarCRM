@@ -308,6 +308,8 @@ export class OrdersService {
       if (!part) throw new NotFoundException('Запчастину не знайдено');
     }
 
+    const itemType = dto.type || (dto.partId ? 'PART' : 'SERVICE');
+
     return this.prisma.$transaction(async (tx) => {
       const item = await tx.orderItem.create({
         data: {
@@ -317,11 +319,14 @@ export class OrdersService {
           name: dto.name,
           quantity: dto.quantity || 1,
           price: dto.price,
+          type: itemType
         },
         include: { service: true, part: true },
       });
 
       await this.recalcTotal(tx, orderId);
+
+      const typeLabel = itemType === 'PART' ? 'запчастину' : 'послугу';
 
       await tx.orderHistory.create({
         data: {
@@ -329,7 +334,7 @@ export class OrdersService {
           changedById: userId,
           action: 'ITEM_ADDED',
           newValue: `${dto.name} x${dto.quantity || 1} — ${dto.price}`,
-          comment: `Додано позицію: ${dto.name}`,
+          comment: `Додано ${typeLabel}: ${dto.name}`,
         },
       });
 

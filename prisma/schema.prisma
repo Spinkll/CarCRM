@@ -135,11 +135,13 @@ model OrderItem {
   name     String
   quantity Int     @default(1)
   price    Decimal @db.Decimal(10, 2)
+
+  type String @default("SERVICE")
 }
 
 model Service {
   id          Int     @id @default(autoincrement())
-  name        String
+  name        String  @unique
   price       Decimal @db.Decimal(10, 2)
   durationMin Int?
 

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsInt, IsOptional, IsNumber, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsInt, IsOptional, IsNumber, Min, IsIn } from 'class-validator';
 
 export class CreateOrderItemDto {
     @IsInt()
@@ -21,4 +21,10 @@ export class CreateOrderItemDto {
     @IsNumber()
     @Min(0)
     price: number;
+
+    @IsString()
+    @IsIn(['SERVICE', 'PART']) 
+    @IsOptional()!
+    type?: string;
 }
+

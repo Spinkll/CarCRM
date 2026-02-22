@@ -11,9 +11,12 @@ import { NotificationsModule } from './module/notifications/notifications.module
 import { ConfigModule } from '@nestjs/config';
 import { ServiceRequestsModule } from './module/service-requests/service-requests.module';
 import { AppointmentsModule } from './module/appointments/appointments.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { CatalogModule } from './module/services/catalog.module';
+
 
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule],
+  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule,CatalogModule],
   controllers: [AppController],
   providers: [AppService],
 })
