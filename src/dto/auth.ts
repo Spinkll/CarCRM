@@ -54,3 +54,4 @@ export class ResetPasswordDto {
   @MinLength(8, { message: 'Пароль має містити мінімум 8 символів' })
   password: string;
 }
+

@@ -1,9 +1,9 @@
-import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/db/prisma.service';
 import { RegisterDto } from 'src/dto/auth';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { UpdateUserDto } from 'src/dto/user';
+import { UpdateUserDto, ChangePasswordDto } from 'src/dto/user';
 import { UserRole } from 'generated/prisma/enums';
 import { CreateEmployeeDto } from 'src/dto/create-employee.dto';
 import { MailService } from '../mail/mail.service';
@@ -46,11 +46,11 @@ if (existingUser) {
       },
     });
 
-    //   try {
-    //   await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
-    // } catch (e) {
-    //   console.error(`Failed to send email to client ${user.email}:`, e);
-    //   }
+    //    try {
+    //    await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
+    //  } catch (e) {
+    //    console.error(`Failed to send email to client ${user.email}:`, e);
+    //    }
       
     return user;
   }
@@ -106,7 +106,7 @@ if (existingUser) {
   }
 
   async createEmployee(dto: CreateEmployeeDto) {
-    const { email, password, firstName, lastName,phone,role } = dto;
+    const { email,firstName, lastName,phone,role } = dto;
 
     const existingUser = await this.prisma.user.findFirst({
   where: {
@@ -120,7 +120,7 @@ if (existingUser) {
   throw new ConflictException('Користувач з таким email або телефоном вже існує');
 }
 
-    const rawPassword = dto.password || crypto.randomBytes(4).toString('hex');
+    const rawPassword = crypto.randomBytes(4).toString('hex');
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
     const user = await this.prisma.user.create({
@@ -131,14 +131,15 @@ if (existingUser) {
         firstName,
         lastName,
         role, 
+        isVerified: true
       },
     });
 
-    // try {
-    //   await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
-    // } catch (e) {
-    //   console.error(`Failed to send email to employee ${user.email}:`, e);
-    // }
+   try {
+     await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
+    } catch (e) {
+       console.error(`Failed to send email to employee ${user.email}:`, e);
+     }
 
     return user;
   }
@@ -176,7 +177,8 @@ if (existingUser) {
         password: hashedPassword,
         firstName,
         lastName,
-        role: 'CLIENT', 
+        role: 'CLIENT',
+        isVerified: true
       },
     });
 
@@ -195,6 +197,41 @@ if (existingUser) {
     } catch (error) {
       throw new InternalServerErrorException('Помилка при отриманні списку механіків');
     }
+  }
+
+  async changePassword(userId: number, dto: ChangePasswordDto) {
+    // 1. Находим пользователя
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Користувача не знайдено');
+    }
+
+    // 2. Проверяем, правильный ли текущий пароль ввел пользователь
+    const isPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
+    
+    if (!isPasswordValid) {
+      throw new BadRequestException('Поточний пароль введено неправильно');
+    }
+
+    // 3. Запрещаем менять пароль на такой же самый (опционально, но хороший тон)
+    const isSamePassword = await bcrypt.compare(dto.newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('Новий пароль не може співпадати зі старим');
+    }
+
+    // 4. Хэшируем новый пароль
+    const hashedNewPassword = await bcrypt.hash(dto.newPassword, 10);
+
+    // 5. Сохраняем в базу
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedNewPassword },
+    });
+
+    return { success: true, message: 'Пароль успішно змінено' };
   }
 
 

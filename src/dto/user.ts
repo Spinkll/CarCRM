@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 
 export class UpdateUserDto {
@@ -24,4 +24,15 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   phone?: string;
+}
+
+export class ChangePasswordDto {
+  @IsString({ message: 'Поточний пароль має бути рядком' })
+  @IsNotEmpty({ message: 'Введіть поточний пароль' })
+  currentPassword: string;
+
+  @IsString({ message: 'Новий пароль має бути рядком' })
+  @IsNotEmpty({ message: 'Введіть новий пароль' })
+  @MinLength(6, { message: 'Новий пароль має містити мінімум 6 символів' })
+  newPassword: string;
 }

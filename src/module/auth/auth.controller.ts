@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, Query, BadRequestException, Get, Patch } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto } from 'src/dto/auth';
 import { AuthGuard } from '@nestjs/passport';
@@ -39,5 +39,14 @@ export class AuthController {
   @Post('/reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body('token') token: string) {
+    if (!token) {
+      throw new BadRequestException('Токен підтвердження відсутній');
+    }
+    
+    return this.authService.verifyEmail(token);
   }
 }

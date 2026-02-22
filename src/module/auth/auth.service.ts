@@ -17,7 +17,28 @@ export class AuthService {
 
   // 1. РЕЄСТРАЦІЯ
   async register(dto: RegisterDto) {
-    const user = await this.usersService.createUser(dto);
+    const clientData = {
+      ...dto,
+      role: 'CLIENT', 
+      isVerified: false,
+    };
+
+    const user = await this.usersService.createUser(clientData as any);
+
+    const verifyToken = await this.jwtService.signAsync(
+      { sub: user.id, email: user.email },
+      {
+        secret: this.configService.get('JWT_VERIFY_SECRET') || this.configService.get('JWT_ACCESS_SECRET'),
+        expiresIn: '24h',
+      },
+    );
+
+    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3001';
+    const verifyLink = `${frontendUrl}/verify-email?token=${verifyToken}`;
+
+    await this.mailService.sendVerificationEmail(user.email, user.firstName, verifyLink).catch(e => {
+      console.error('Помилка відправки листа верифікації', e);
+    });
 
     const tokens = await this.generateTokens(user);
     await this.updateRefreshTokenHash(user.id, tokens.refresh_token);
@@ -47,6 +68,7 @@ export class AuthService {
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
+        isVerified: user.isVerified
       },
     };
   }
@@ -158,6 +180,22 @@ export class AuthService {
       access_token: at,
       refresh_token: rt,
     };
+  }
+
+  async verifyEmail(token: string) {
+    let payload: any;
+
+    try {
+      payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get('JWT_VERIFY_SECRET') || this.configService.get('JWT_ACCESS_SECRET'),
+      });
+    } catch (e) {
+      throw new BadRequestException('Токен підтвердження невалідний або прострочений');
+    }
+
+    await this.usersService.update(payload.sub, { isVerified: true });
+
+    return { message: 'Email успішно підтверджено' };
   }
 
 }

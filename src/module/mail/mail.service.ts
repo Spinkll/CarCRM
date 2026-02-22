@@ -6,70 +6,62 @@ export class MailService {
     constructor(private mailerService: MailerService) { }
 
     async sendUserPassword(email: string, name: string, pass: string) {
-
         const loginUrl = 'http://169.254.96.210:3001/login';
         const appName = 'WagGarage CRM';
 
         await this.mailerService.sendMail({
             to: email,
-            subject: `🔐 Дані для входу в ${appName}`,
+            subject: `Дані для входу в ${appName}`,
             html: `
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
-            <style>
-                /* Ці стилі для клієнтів, які їх підтримують */
-                body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; }
-                .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-                .header { background-color: #2563eb; padding: 30px 20px; text-align: center; }
-                .header h1 { color: #ffffff; margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
-                .content { padding: 40px 30px; color: #374151; line-height: 1.6; }
-                .greeting { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #111827; }
-                .card { background-color: #eff6ff; border: 1px solid #dbeafe; border-radius: 6px; padding: 20px; margin: 25px 0; text-align: center; }
-                .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block; }
-                .value { font-size: 18px; font-weight: bold; color: #1e40af; font-family: 'Courier New', Courier, monospace; margin-bottom: 15px; display: block; }
-                .btn { display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: bold; margin-top: 20px; }
-                .footer { background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; }
-            </style>
         </head>
-        <body style="margin: 0; padding: 20px; background-color: #f3f4f6;">
+        <body style="margin: 0; padding: 20px; background-color: #161618; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
             
-            <div class="container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="max-width: 500px; margin: 40px auto; background-color: #212124; border: 1px solid #37373b; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);">
                 
-                <div class="header" style="background-color: #2563eb; padding: 30px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-family: sans-serif; font-size: 24px;">${appName}</h1>
+                <!-- Card Header -->
+                <div style="padding: 24px;">
+                    <div style="margin-bottom: 24px;">
+                        <h1 style="color: #f4f4f5; margin: 0 0 6px 0; font-size: 20px; font-weight: 600; letter-spacing: -0.025em;">
+                            WagGarage CRM
+                        </h1>
+                        <p style="margin: 0; color: #9ca3af; font-size: 14px;">Дані для входу в систему</p>
+                    </div>
+
+                    <!-- Card Content -->
+                    <div style="color: #f4f4f5; font-size: 14px; line-height: 24px;">
+                        <p style="margin: 0 0 16px 0;">Вітаємо, <strong>${name}</strong>!<br>Ваш обліковий запис було успішно створено адміністратором.</p>
+                        
+                        <div style="margin: 24px 0; border: 1px solid #37373b; border-radius: 8px; background-color: #161618; padding: 16px;">
+                            <div style="margin-bottom: 12px;">
+                                <span style="display: block; font-size: 12px; font-weight: 500; color: #9ca3af; margin-bottom: 4px;">Електронна пошта</span>
+                                <span style="display: block; font-size: 14px; color: #f4f4f5;">${email}</span>
+                            </div>
+                            <div>
+                                <span style="display: block; font-size: 12px; font-weight: 500; color: #9ca3af; margin-bottom: 4px;">Тимчасовий пароль</span>
+                                <span style="display: block; font-size: 18px; font-weight: 600; font-family: 'Geist Mono', Consolas, monospace; letter-spacing: 1px; color: #3b82f6;">${pass}</span>
+                            </div>
+                        </div>
+
+                        <p style="margin: 0 0 24px 0; color: #9ca3af; font-size: 13px;">
+                            З міркувань безпеки ми рекомендуємо змінити цей пароль після першого входу.
+                        </p>
+
+                        <!-- Button -->
+                        <div style="margin-top: 24px;">
+                            <a href="${loginUrl}" style="display: inline-block; background-color: #3b82f6; color: #fafafa; text-decoration: none; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; text-align: center;">
+                                Увійти в кабінет
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="content" style="padding: 40px 30px; color: #374151; font-family: sans-serif; line-height: 1.6;">
-                    <div class="greeting" style="font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #111827;">
-                        Вітаємо, ${name}! 👋
-                    </div>
-                    
-                    <p>Ваш обліковий запис було успішно створено адміністратором. Тепер ви можете увійти в систему та переглядати статус ваших авто та замовлень.</p>
-                    
-                    <div class="card" style="background-color: #eff6ff; border: 1px solid #dbeafe; border-radius: 6px; padding: 20px; margin: 25px 0; text-align: center;">
-                        
-                        <span class="label" style="font-size: 12px; color: #6b7280; text-transform: uppercase; display: block;">Ваш Логін (Email)</span>
-                        <span class="value" style="font-size: 16px; font-weight: bold; color: #1f2937; margin-bottom: 15px; display: block;">${email}</span>
-                        
-                        <span class="label" style="font-size: 12px; color: #6b7280; text-transform: uppercase; display: block;">Ваш тимчасовий пароль</span>
-                        <span class="value" style="font-size: 20px; font-weight: bold; color: #2563eb; background: #fff; display: inline-block; padding: 5px 10px; border-radius: 4px; border: 1px dashed #2563eb; font-family: monospace;">${pass}</span>
-                    
-                    </div>
-
-                    <p style="font-size: 14px; color: #6b7280;">⚠️ З міркувань безпеки, ми рекомендуємо змінити цей пароль після першого входу в особистому кабінеті.</p>
-
-                    <div style="text-align: center;">
-                        <a href="${loginUrl}" class="btn" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: bold; margin-top: 10px;">
-                            Увійти в кабінет
-                        </a>
-                    </div>
-                </div>
-
-                <div class="footer" style="background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; font-family: sans-serif;">
-                    <p style="margin: 0;">Це автоматичний лист, будь ласка, не відповідайте на нього.</p>
-                    <p style="margin: 5px 0;">© 2026 ${appName}. Всі права захищено.</p>
+                <!-- Card Footer -->
+                <div style="padding: 16px 24px; background-color: #161618; border-top: 1px solid #37373b; font-size: 12px; color: #9ca3af;">
+                    Це автоматичний лист. Будь ласка, не відповідайте на нього.
                 </div>
 
             </div>
@@ -84,42 +76,106 @@ export class MailService {
 
         await this.mailerService.sendMail({
             to: email,
-            subject: `🔑 Відновлення пароля — ${appName}`,
+            subject: `Відновлення пароля — ${appName}`,
             html: `
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
         </head>
-        <body style="margin: 0; padding: 20px; background-color: #f3f4f6;">
+        <body style="margin: 0; padding: 20px; background-color: #161618; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
             
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="max-width: 500px; margin: 40px auto; background-color: #212124; border: 1px solid #37373b; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);">
                 
-                <div style="background-color: #dc2626; padding: 30px 20px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-family: sans-serif; font-size: 24px;">🔑 Відновлення пароля</h1>
-                </div>
-
-                <div style="padding: 40px 30px; color: #374151; font-family: sans-serif; line-height: 1.6;">
-                    <div style="font-size: 20px; font-weight: bold; margin-bottom: 20px; color: #111827;">
-                        Вітаємо, ${name}! 👋
-                    </div>
-                    
-                    <p>Ми отримали запит на відновлення пароля для вашого облікового запису. Натисніть кнопку нижче, щоб встановити новий пароль:</p>
-                    
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="${resetLink}" style="display: inline-block; background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 6px; font-weight: bold; font-size: 16px;">
-                            Змінити пароль
-                        </a>
+                <div style="padding: 24px;">
+                    <div style="margin-bottom: 24px;">
+                        <h1 style="color: #f4f4f5; margin: 0 0 6px 0; font-size: 20px; font-weight: 600; letter-spacing: -0.025em;">
+                            Відновлення пароля
+                        </h1>
+                        <p style="margin: 0; color: #9ca3af; font-size: 14px;">${appName}</p>
                     </div>
 
-                    <p style="font-size: 14px; color: #6b7280;">⏰ Посилання дійсне протягом <strong>1 години</strong>. Якщо ви не запитували зміну пароля, просто проігноруйте цей лист.</p>
-                    
-                    <p style="font-size: 12px; color: #9ca3af; word-break: break-all; margin-top: 20px;">Якщо кнопка не працює, скопіюйте це посилання у браузер:<br>${resetLink}</p>
+                    <div style="color: #f4f4f5; font-size: 14px; line-height: 24px;">
+                        <p style="margin: 0 0 16px 0;">Вітаємо, <strong>${name}</strong>!<br>Ми отримали запит на скидання пароля для вашого облікового запису.</p>
+                        
+                        <div style="margin-top: 24px; margin-bottom: 24px;">
+                            <a href="${resetLink}" style="display: inline-block; background-color: #f4f4f5; color: #18181b; text-decoration: none; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; text-align: center;">
+                                Скинути пароль
+                            </a>
+                        </div>
+
+                        <div style="border: 1px solid #37373b; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; background-color: #161618;">
+                            <p style="margin: 0; color: #9ca3af; font-size: 13px;">
+                                Посилання дійсне протягом 1 години. Якщо ви не надсилали цей запит, ви можете безпечно проігнорувати цей лист. Вашому акаунту нічого не загрожує.
+                            </p>
+                        </div>
+
+                        <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                            Якщо кнопка не працює, скопіюйте це посилання у браузер:<br>
+                            <a href="${resetLink}" style="color: #3b82f6; word-break: break-all;">${resetLink}</a>
+                        </p>
+                    </div>
                 </div>
 
-                <div style="background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; font-family: sans-serif;">
-                    <p style="margin: 0;">Це автоматичний лист, будь ласка, не відповідайте на нього.</p>
-                    <p style="margin: 5px 0;">© 2026 ${appName}. Всі права захищено.</p>
+                <div style="padding: 16px 24px; background-color: #161618; border-top: 1px solid #37373b; font-size: 12px; color: #9ca3af;">
+                    Це автоматичний лист. Будь ласка, не відповідайте на нього.
+                </div>
+
+            </div>
+        </body>
+        </html>
+      `,
+        });
+    }
+
+    async sendVerificationEmail(email: string, name: string, verifyLink: string) {
+        const appName = 'WagGarage CRM';
+
+        await this.mailerService.sendMail({
+            to: email,
+            subject: `Підтвердження реєстрації — ${appName}`,
+            html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+        </head>
+        <body style="margin: 0; padding: 20px; background-color: #161618; font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+            
+            <div style="max-width: 500px; margin: 40px auto; background-color: #212124; border: 1px solid #37373b; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);">
+                
+                <div style="padding: 24px;">
+                    <div style="margin-bottom: 24px;">
+                        <h1 style="color: #f4f4f5; margin: 0 0 6px 0; font-size: 20px; font-weight: 600; letter-spacing: -0.025em;">
+                            Підтвердження Email
+                        </h1>
+                        <p style="margin: 0; color: #9ca3af; font-size: 14px;">${appName}</p>
+                    </div>
+
+                    <div style="color: #f4f4f5; font-size: 14px; line-height: 24px;">
+                        <p style="margin: 0 0 16px 0;">Вітаємо, <strong>${name}</strong>!<br>Дякуємо за реєстрацію. Будь ласка, підтвердіть вашу електронну адресу, щоб активувати обліковий запис.</p>
+                        
+                        <div style="margin-top: 24px; margin-bottom: 24px;">
+                            <a href="${verifyLink}" style="display: inline-block; background-color: #f4f4f5; color: #18181b; text-decoration: none; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; text-align: center;">
+                                Підтвердити Email
+                            </a>
+                        </div>
+
+                        <div style="border: 1px solid #37373b; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; background-color: #161618;">
+                            <p style="margin: 0; color: #9ca3af; font-size: 13px;">
+                                Посилання дійсне протягом 24 годин.
+                            </p>
+                        </div>
+
+                        <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                            Якщо кнопка не працює, скопіюйте це посилання у браузер:<br>
+                            <a href="${verifyLink}" style="color: #3b82f6; word-break: break-all;">${verifyLink}</a>
+                        </p>
+                    </div>
+                </div>
+
+                <div style="padding: 16px 24px; background-color: #161618; border-top: 1px solid #37373b; font-size: 12px; color: #9ca3af;">
+                    Це автоматичний лист. Будь ласка, не відповідайте на нього.
                 </div>
 
             </div>
