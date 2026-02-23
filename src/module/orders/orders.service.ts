@@ -295,10 +295,6 @@ export class OrdersService {
 
   // --- ДОДАВАННЯ ТА ВИДАЛЕННЯ ПОЗИЦІЙ (без змін логіки сповіщень) ---
   async addItem(userId: number, orderId: number, dto: CreateOrderItemDto) {
-    
-    console.log('--- НОВА ПОЗИЦІЯ ---');
-    console.log('DTO від фронтенду:', dto);
-
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Замовлення не знайдено');
 
