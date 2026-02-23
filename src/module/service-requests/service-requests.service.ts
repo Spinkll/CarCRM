@@ -9,36 +9,34 @@ export class ServiceRequestsService {
     private notifications: NotificationsService
   ) {}
 
-  // 1. Клієнт створює заявку
-  async createRequest(clientId: number, carId: number, reason: string) {
-    // Перевіряємо, чи належить машина клієнту
+  async createRequest(clientId: number, carId: number, reason: string, scheduledAt?: string) {
     const car = await this.prisma.car.findUnique({ where: { id: carId } });
     if (!car || car.userId !== clientId) {
       throw new BadRequestException('Автомобіль не знайдено або він не належить вам');
     }
 
-    // ВИПРАВЛЕННЯ 1: Спочатку створюємо запис у БД
     const request = await this.prisma.serviceRequest.create({
       data: {
         clientId,
         carId,
         reason,
         status: 'NEW',
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       },
     });
 
-    // ПОТІМ відправляємо сповіщення адмінам/менеджерам
+    const timeInfo = scheduledAt ? ` Бажаний час: ${new Date(scheduledAt).toLocaleString()}` : '';
+    
     await this.notifications.notifyByRoles(
       ['ADMIN', 'MANAGER'], 
       'Нова заявка на сервіс', 
-      `Клієнт створив нову заявку для авто ${car.brand} ${car.model}. Причина: ${reason}`, 
+      `Клієнт створив нову заявку для авто ${car.brand} ${car.model}. Причина: ${reason}.${timeInfo}`, 
       'NEW_REQUEST'
     );
 
     return request;
   }
 
-  // 2. Отримати всі заявки
   async findAll() {
     return this.prisma.serviceRequest.findMany({
       include: {
@@ -49,7 +47,6 @@ export class ServiceRequestsService {
     });
   }
 
-  // 3. Отримати заявки конкретного клієнта
   async findByClient(clientId: number) {
     return this.prisma.serviceRequest.findMany({
       where: { clientId },
@@ -58,7 +55,6 @@ export class ServiceRequestsService {
     });
   }
 
-  // 4. ОДОБРИТИ ТА ЗАПИСАТИ (Транзакція)
   async approveAndSchedule(requestId: number, managerId: number, dto: { 
     scheduledAt: string; 
     estimatedMin?: number; 
@@ -76,7 +72,6 @@ export class ServiceRequestsService {
         throw new BadRequestException('Цю заявку вже опрацювали');
       }
 
-      // Створюємо Замовлення (Order)
       const order = await tx.order.create({
         data: {
           carId: request.carId,
@@ -88,7 +83,6 @@ export class ServiceRequestsService {
         }
       });
 
-      // Створюємо Запис (Appointment) у календар
       await tx.appointment.create({
         data: {
           orderId: order.id,
@@ -98,7 +92,6 @@ export class ServiceRequestsService {
         }
       });
 
-      // Оновлюємо статус заявки
       await tx.serviceRequest.update({
         where: { id: requestId },
         data: {
@@ -107,7 +100,6 @@ export class ServiceRequestsService {
         }
       });
 
-      // Історія замовлення
       await tx.orderHistory.create({
         data: {
           orderId: order.id,
@@ -117,7 +109,6 @@ export class ServiceRequestsService {
         }
       });
 
-      // Сповіщення клієнту про підтвердження візиту
       await tx.notification.create({
         data: {
           userId: request.clientId,
@@ -132,16 +123,13 @@ export class ServiceRequestsService {
     });
   }
 
-  // 5. ВІДХИЛИТИ заявку
   async rejectRequest(requestId: number) {
-    // ВИПРАВЛЕННЯ 2: Зберігаємо оновлену заявку в змінну, підтягуємо авто
     const request = await this.prisma.serviceRequest.update({
       where: { id: requestId },
       data: { status: 'REJECTED' },
       include: { car: true } 
     });
 
-    // Сповіщаємо клієнта, що його заявку відхилено
     await this.notifications.create(
       request.clientId,
       'Заявку відхилено',

@@ -18,13 +18,16 @@ export class CreateOrderItemDto {
     @IsOptional()
     quantity?: number = 1;
 
+    @IsString() // ДОДАНО: обов'язково вказуємо тип для sku
+    @IsOptional()
+    sku?: string;
+
     @IsNumber()
     @Min(0)
-    price: number;
+    price: number; // Це фінальна ціна продажу клієнту (retailPrice або Service.price)
 
     @IsString()
     @IsIn(['SERVICE', 'PART']) 
-    @IsOptional()!
+    @IsOptional() // ВИПРАВЛЕНО: прибрано зайвий "!"
     type?: string;
 }
-

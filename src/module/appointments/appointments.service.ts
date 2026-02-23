@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AppointmentStatus } from 'generated/prisma/enums';
 import { PrismaService } from 'src/db/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -118,5 +118,62 @@ export class AppointmentsService {
     return updatedAppointment;
   }
 
-  
+  async getAvailableSlots(dateString: string) {
+    const searchDate = new Date(dateString);
+    if (isNaN(searchDate.getTime())) {
+      throw new BadRequestException('Неправильний формат дати. Використовуйте YYYY-MM-DD');
+    }
+
+    const workStartHour = 8;  
+    const workEndHour = 18;  
+    const slotDurationMinutes = 60; 
+
+    const startOfDay = new Date(searchDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(searchDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingAppointments = await this.prisma.appointment.findMany({
+      where: {
+        scheduledAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        status: {
+          in: ['SCHEDULED', 'CONFIRMED', 'ARRIVED'], 
+        },
+      },
+      select: { scheduledAt: true },
+    });
+
+    const busyTimes = existingAppointments.map((app) => {
+      const d = new Date(app.scheduledAt);
+      return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    });
+
+    const availableSlots: string[] = [];
+    
+    let currentSlot = new Date(startOfDay);
+    currentSlot.setHours(workStartHour, 0, 0, 0);
+
+    const endTime = new Date(startOfDay);
+    endTime.setHours(workEndHour, 0, 0, 0);
+
+    const now = new Date(); 
+
+    while (currentSlot < endTime) {
+      if (currentSlot > now) {
+        const timeString = `${currentSlot.getHours().toString().padStart(2, '0')}:${currentSlot.getMinutes().toString().padStart(2, '0')}`;
+        
+        if (!busyTimes.includes(timeString)) {
+          availableSlots.push(timeString);
+        }
+      }
+      
+      currentSlot.setMinutes(currentSlot.getMinutes() + slotDurationMinutes);
+    }
+
+    return availableSlots;
+  }
 }

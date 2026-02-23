@@ -295,45 +295,74 @@ export class OrdersService {
 
   // --- ДОДАВАННЯ ТА ВИДАЛЕННЯ ПОЗИЦІЙ (без змін логіки сповіщень) ---
   async addItem(userId: number, orderId: number, dto: CreateOrderItemDto) {
+    
+    console.log('--- НОВА ПОЗИЦІЯ ---');
+    console.log('DTO від фронтенду:', dto);
+
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Замовлення не знайдено');
 
-    if (dto.serviceId) {
-      const service = await this.prisma.service.findUnique({ where: { id: dto.serviceId } });
-      if (!service) throw new NotFoundException('Послугу не знайдено');
-    }
-
-    if (dto.partId) {
-      const part = await this.prisma.part.findUnique({ where: { id: dto.partId } });
-      if (!part) throw new NotFoundException('Запчастину не знайдено');
-    }
-
     const itemType = dto.type || (dto.partId ? 'PART' : 'SERVICE');
+    const quantity = dto.quantity || 1;
 
+    // Починаємо транзакцію
     return this.prisma.$transaction(async (tx) => {
+      let currentCostPrice = 0; // Собівартість для фіксації в чеку
+
+      // 1. Обробка ПОСЛУГИ
+      if (itemType === 'SERVICE' && dto.serviceId) {
+        const service = await tx.service.findUnique({ where: { id: dto.serviceId } });
+        if (!service) throw new NotFoundException('Послугу не знайдено');
+        
+        currentCostPrice = Number(service.costPrice) || 0;
+      }
+
+      // 2. Обробка ЗАПЧАСТИНИ (зі списанням зі складу)
+      if (itemType === 'PART' && dto.partId) {
+        const part = await tx.part.findUnique({ where: { id: dto.partId } });
+        if (!part) throw new NotFoundException('Запчастину не знайдено');
+
+        // Перевіряємо, чи вистачає деталей на складі
+        if (part.stockQuantity < quantity) {
+          throw new BadRequestException(`Недостатньо на складі! Залишок: ${part.stockQuantity} шт.`);
+        }
+
+        currentCostPrice = Number(part.purchasePrice) || 0;
+
+        // Зменшуємо залишок на складі
+        await tx.part.update({
+          where: { id: part.id },
+          data: { stockQuantity: { decrement: quantity } },
+        });
+      }
+
+      // 3. Створюємо позицію в чеку
       const item = await tx.orderItem.create({
         data: {
           orderId,
           serviceId: dto.serviceId || null,
           partId: dto.partId || null,
           name: dto.name,
-          quantity: dto.quantity || 1,
+          quantity: quantity,
           price: dto.price,
-          type: itemType
+          type: itemType,
+          // Щоб розкоментувати наступний рядок, додай `costPrice Decimal?` у модель OrderItem
+          // costPrice: currentCostPrice, 
         },
         include: { service: true, part: true },
       });
 
+      // 4. Перераховуємо загальну суму замовлення
       await this.recalcTotal(tx, orderId);
 
+      // 5. Записуємо історію
       const typeLabel = itemType === 'PART' ? 'запчастину' : 'послугу';
-
       await tx.orderHistory.create({
         data: {
           orderId,
           changedById: userId,
           action: 'ITEM_ADDED',
-          newValue: `${dto.name} x${dto.quantity || 1} — ${dto.price}`,
+          newValue: `[${itemType}] ${dto.name} x${quantity} — ${dto.price}`,
           comment: `Додано ${typeLabel}: ${dto.name}`,
         },
       });
@@ -349,6 +378,13 @@ export class OrdersService {
     if (!item) throw new NotFoundException('Позицію не знайдено');
 
     return this.prisma.$transaction(async (tx) => {
+      if (item.type === 'PART' && item.partId) {
+        await tx.part.update({
+          where: { id: item.partId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      }
+
       await tx.orderItem.delete({ where: { id: itemId } });
 
       await this.recalcTotal(tx, orderId);
@@ -359,7 +395,7 @@ export class OrdersService {
           changedById: userId,
           action: 'ITEM_REMOVED',
           oldValue: `${item.name} x${item.quantity} — ${item.price}`,
-          comment: `Видалено позицію: ${item.name}`,
+          comment: `Видалено позицію: ${item.name}${item.type === 'PART' ? ' (Повернуто на склад)' : ''}`,
         },
       });
 

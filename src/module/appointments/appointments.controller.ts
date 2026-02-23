@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Param, UseGuards, Req, ParseIntPipe, BadRequestException, Query } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from '@prisma/client';
@@ -36,5 +36,14 @@ export class AppointmentsController {
     @Body() dto: RescheduleAppointmentDto
   ) {
     return this.appointmentsService.reschedule(id, dto.scheduledAt, dto.estimatedMin);
+  }
+
+  @Get('available-slots')
+  @UseGuards(AuthGuard('jwt'))
+  async getAvailableSlots(@Query('date') date: string) {
+    if (!date) {
+      throw new BadRequestException('Вкажіть дату у параметрі ?date=YYYY-MM-DD');
+    }
+    return this.appointmentsService.getAvailableSlots(date);
   }
 }

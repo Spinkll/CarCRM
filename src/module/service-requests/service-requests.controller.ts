@@ -12,8 +12,8 @@ export class ServiceRequestsController {
 
   // Создать заявку (Клиент)
   @Post()
-  create(@Req() req, @Body() dto: CreateServiceRequestDto) { // <-- ИСПОЛЬЗУЕМ DTO
-    return this.requestsService.createRequest(req.user.id, dto.carId, dto.reason);
+  create(@Req() req, @Body() dto: CreateServiceRequestDto) { 
+    return this.requestsService.createRequest(req.user.id, dto.carId, dto.reason, dto.scheduledAt);
   }
 
   @Get()

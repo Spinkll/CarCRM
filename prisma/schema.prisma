@@ -63,6 +63,8 @@ model ServiceRequest {
   description String?
   status      ServiceRequestStatus @default(NEW)
 
+  scheduledAt DateTime?
+
   orderId Int?   @unique
   order   Order? @relation(fields: [orderId], references: [id])
 
@@ -132,18 +134,20 @@ model OrderItem {
   partId Int?
   part   Part? @relation(fields: [partId], references: [id])
 
-  name     String
-  quantity Int     @default(1)
-  price    Decimal @db.Decimal(10, 2)
+  name      String
+  quantity  Int      @default(1)
+  price     Decimal  @db.Decimal(10, 2)
+  costPrice Decimal? @db.Decimal(10, 2)
 
   type String @default("SERVICE")
 }
 
 model Service {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
-  price       Decimal @db.Decimal(10, 2)
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  price       Decimal  @db.Decimal(10, 2)
   durationMin Int?
+  costPrice   Decimal? @db.Decimal(10, 2) // Оплата механіку за цю роботу (щоб рахувати чистий прибуток СТО)
 
   deletedAt DateTime?
 
@@ -151,11 +155,15 @@ model Service {
 }
 
 model Part {
-  id    Int     @id @default(autoincrement())
-  name  String
-  sku   String  @unique
-  price Decimal @db.Decimal(10, 2)
-  stock Int     @default(0)
+  id   Int    @id @default(autoincrement())
+  name String
+  sku  String @unique
+
+  purchasePrice Decimal @db.Decimal(10, 2)
+  retailPrice   Decimal @db.Decimal(10, 2)
+
+  stockQuantity Int @default(0)
+  minStockLevel Int @default(3)
 
   deletedAt DateTime?
 

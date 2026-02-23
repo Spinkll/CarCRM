@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateServiceRequestDto {
   @IsInt()
@@ -9,4 +9,8 @@ export class CreateServiceRequestDto {
   @IsNotEmpty()
   @MaxLength(1000)
   reason: string;
+
+  @IsDateString()
+  @IsOptional()
+  scheduledAt?: string;
 }
