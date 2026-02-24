@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/db/prisma.service';
 import { CreateInventoryDto } from 'src/dto/create-inventory.dto';
+import { ReportMissingDto } from 'src/dto/ReportMissingDto';
 import { UpdateInventoryDto } from 'src/dto/update-inventory.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class InventoryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService,
+    private notifications: NotificationsService
+  ) {}
 
   private generateSku(): string {
     const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -41,14 +45,11 @@ export class InventoryService {
   }
 
   async findAll() {
-    // Повертаємо тільки ті деталі, які НЕ видалені
     const parts = await this.prisma.part.findMany({
       where: { deletedAt: null },
       orderBy: { name: 'asc' },
     });
 
-    // Prisma повертає Decimal як об'єкти. 
-    // Фронтенд очікує числа, тому робимо швидкий мапінг:
     return parts.map(part => ({
       id: part.id,
       name: part.name,
@@ -75,7 +76,6 @@ export class InventoryService {
   }
 
   async update(id: number, dto: UpdateInventoryDto) {
-    // Перевіряємо, чи існує деталь
     await this.findOne(id);
 
     const updatedPart = await this.prisma.part.update({
@@ -99,5 +99,31 @@ export class InventoryService {
     });
 
     return { message: 'Запчастину успішно видалено зі складу' };
+  }
+
+  async reportMissing(userId: number, dto: ReportMissingDto) {
+    const part = await this.prisma.part.findUnique({
+      where: { id: dto.partId },
+    });
+    if (!part) throw new NotFoundException('Запчастину не знайдено');
+
+    const mechanic = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    const mechanicName = mechanic ? `${mechanic.firstName} ${mechanic.lastName}` : `Користувач #${userId}`;
+    const skuInfo = part.sku ? `(Арт: ${part.sku})` : '';
+    
+    const title = '⚠️ Розбіжність на складі!';
+    const message = `Механік ${mechanicName} повідомляє, що деталь "${part.name}" ${skuInfo} закінчилася на складі.${dto.comment ? `\nКоментар: ${dto.comment}` : ''}`;
+
+    await this.notifications.notifyByRoles(
+      ['ADMIN', 'MANAGER'],
+      title,
+      message,
+      'System' 
+    );
+
+    return { message: 'Повідомлення успішно надіслано менеджеру' };
   }
 }

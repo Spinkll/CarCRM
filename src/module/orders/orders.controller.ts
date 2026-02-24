@@ -15,13 +15,11 @@ import { OrderStatus } from '@prisma/client';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) { }
 
-  // === СОЗДАНИЕ ЗАКАЗА (все авторизованные) ===
   @Post()
   create(@Req() req, @Body() dto: CreateOrderDto) {
     return this.ordersService.create(req.user.id, req.user.role, dto);
   }
 
-  // === СПИСОК ЗАКАЗОВ (с фильтрацией) ===
   @Get()
   findAll(
     @Req() req,
@@ -38,13 +36,11 @@ export class OrdersController {
     });
   }
 
-  // === ДЕТАЛИ ЗАКАЗА ===
   @Get(':id')
   findOne(@Req() req, @Param('id', ParseIntPipe) id: number) {
     return this.ordersService.findOne(req.user.id, req.user.role, id);
   }
 
-  // === СМЕНА СТАТУСА (Admin / Manager) ===
   @Patch(':id/status')
   @UseGuards(new RolesGuard(['ADMIN', 'MANAGER', 'MECHANIC']))
   updateStatus(
@@ -55,7 +51,6 @@ export class OrdersController {
     return this.ordersService.updateStatus(req.user.id, id, dto);
   }
 
-  // === НАЗНАЧЕНИЕ МЕНЕДЖЕРА / МЕХАНИКА (Admin / Manager) ===
   @Patch(':id/assign')
   @UseGuards(new RolesGuard(['ADMIN', 'MANAGER']))
   assignOrder(
@@ -66,7 +61,6 @@ export class OrdersController {
     return this.ordersService.assignOrder(req.user.id, id, dto);
   }
 
-  // === ДОБАВЛЕНИЕ ПОЗИЦИИ В ЗАКАЗ (Admin / Manager) ===
   @Post(':id/items')
   @UseGuards(new RolesGuard(['ADMIN', 'MANAGER','MECHANIC']))
   addItem(
@@ -77,7 +71,6 @@ export class OrdersController {
     return this.ordersService.addItem(req.user.id, id, dto);
   }
 
-  // === УДАЛЕНИЕ ПОЗИЦИИ ИЗ ЗАКАЗА (Admin / Manager) ===
   @Delete(':id/items/:itemId')
   @UseGuards(new RolesGuard(['ADMIN', 'MANAGER','MECHANIC']))
   removeItem(

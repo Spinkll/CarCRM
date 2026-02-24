@@ -209,23 +209,19 @@ if (existingUser) {
       throw new NotFoundException('Користувача не знайдено');
     }
 
-    // 2. Проверяем, правильный ли текущий пароль ввел пользователь
     const isPasswordValid = await bcrypt.compare(dto.currentPassword, user.password);
     
     if (!isPasswordValid) {
       throw new BadRequestException('Поточний пароль введено неправильно');
     }
 
-    // 3. Запрещаем менять пароль на такой же самый (опционально, но хороший тон)
     const isSamePassword = await bcrypt.compare(dto.newPassword, user.password);
     if (isSamePassword) {
       throw new BadRequestException('Новий пароль не може співпадати зі старим');
     }
 
-    // 4. Хэшируем новый пароль
     const hashedNewPassword = await bcrypt.hash(dto.newPassword, 10);
 
-    // 5. Сохраняем в базу
     await this.prisma.user.update({
       where: { id: userId },
       data: { password: hashedNewPassword },
@@ -234,5 +230,48 @@ if (existingUser) {
     return { success: true, message: 'Пароль успішно змінено' };
   }
 
+  async getMechanicEarnings(mechanicId: number) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    const completedWorks = await this.prisma.orderItem.findMany({
+      where: {
+        mechanicId: mechanicId,
+        type: 'SERVICE', 
+        order: {
+          status: 'COMPLETED', 
+          updatedAt: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
+        },
+      },
+      include: {
+        order: { select: { id: true,updatedAt: true, car: { select: { brand: true, model: true } } } },
+      },
+    });
+
+    const totalEarnings = completedWorks.reduce((sum, item) => {
+      return sum + (Number(item.costPrice) || 0) * item.quantity;
+    }, 0);
+
+    return {
+      period: {
+        start: startOfMonth,
+        end: endOfMonth,
+      },
+      totalEarnings,
+      works: completedWorks.map((work) => ({
+        id: work.id,
+        orderId: work.orderId,
+        car: `${work.order.car.brand} ${work.order.car.model}`,
+        name: work.name,
+        quantity: work.quantity,
+        earned: Number(work.costPrice) || 0,
+        date: work.order.updatedAt,
+      })),
+    };
+  }
 
 }

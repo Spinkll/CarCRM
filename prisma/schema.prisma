@@ -30,6 +30,7 @@ model User {
   assignedTasks   Task[]
   notifications   Notification[]
   serviceRequests ServiceRequest[] @relation("ClientRequests")
+  orderItems      OrderItem[]      @relation("MechanicWorks")
 }
 
 model Car {
@@ -138,6 +139,9 @@ model OrderItem {
   quantity  Int      @default(1)
   price     Decimal  @db.Decimal(10, 2)
   costPrice Decimal? @db.Decimal(10, 2)
+
+  mechanicId Int?
+  mechanic   User? @relation("MechanicWorks", fields: [mechanicId], references: [id])
 
   type String @default("SERVICE")
 }

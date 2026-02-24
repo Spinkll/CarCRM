@@ -59,4 +59,11 @@ export class UsersController {
   ) {
     return this.usersService.changePassword(req.user.id, dto);
   }
+
+  @Get('me/earnings')
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['MECHANIC']))
+  async getMyEarnings(@Req() req) {
+    const mechanicId = req.user.id;
+    return this.usersService.getMechanicEarnings(mechanicId);
+  }
 }

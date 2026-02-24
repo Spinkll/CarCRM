@@ -23,7 +23,6 @@ export class OrdersService {
     private notifications: NotificationsService,
   ) { }
 
-  // --- СТВОРЕННЯ ЗАМОВЛЕННЯ ---
   async create(userId: number, role: UserRole, dto: CreateOrderDto) {
     const car = await this.prisma.car.findUnique({ where: { id: dto.vehicleId } });
     if (!car) throw new NotFoundException('Автомобіль не знайдено');
@@ -68,7 +67,6 @@ export class OrdersService {
       return createdOrder;
     });
 
-    // 🔔 СПОВІЩЕННЯ: Якщо замовлення створює менеджер або адмін, сповіщаємо клієнта
     if (role === 'ADMIN' || role === 'MANAGER') {
       this.notifications.create(
         car.userId,
@@ -82,7 +80,6 @@ export class OrdersService {
     return order;
   }
 
-  // --- СПИСОК ЗАМОВЛЕНЬ (без змін) ---
   async findAll(userId: number, role: UserRole, filters?: {
     status?: OrderStatus;
     mechanicId?: number;
@@ -121,7 +118,6 @@ export class OrdersService {
     });
   }
 
-  // --- ДЕТАЛІ ЗАМОВЛЕННЯ (без змін) ---
   async findOne(userId: number, role: UserRole, id: number) {
     const order = await this.prisma.order.findUnique({
       where: { id },
@@ -142,7 +138,6 @@ export class OrdersService {
     return order;
   }
 
-  // --- ЗМІНА СТАТУСУ ---
   async updateStatus(userId: number, id: number, dto: UpdateOrderStatusDto) {
     const order = await this.prisma.order.findUnique({ 
       where: { id },
@@ -174,13 +169,12 @@ export class OrdersService {
       return result;
     });
 
-    // 🔔 СПОВІЩЕННЯ: Формуємо список отримувачів (Клієнт + Команда)
     const notifyIds = new Set<number>();
     notifyIds.add(order.car.userId); // Клієнт
-    if (updatedOrder.managerId) notifyIds.add(updatedOrder.managerId); // Менеджер
-    if (updatedOrder.mechanicId) notifyIds.add(updatedOrder.mechanicId); // Механік
+    if (updatedOrder.managerId) notifyIds.add(updatedOrder.managerId); 
+    if (updatedOrder.mechanicId) notifyIds.add(updatedOrder.mechanicId);
 
-    notifyIds.delete(userId); // Не сповіщати того, хто сам змінив статус!
+    notifyIds.delete(userId); 
 
     if (notifyIds.size > 0) {
       this.notifications.notifyMany(
@@ -195,7 +189,6 @@ export class OrdersService {
     return updatedOrder;
   }
 
-  // --- ПРИЗНАЧЕННЯ КОМАНДИ ---
   async assignOrder(userId: number, orderId: number, dto: AssignOrderDto) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
@@ -269,7 +262,6 @@ export class OrdersService {
       return result;
     });
 
-    // 🔔 СПОВІЩЕННЯ: Призначеним співробітникам (якщо вони не призначали самі себе)
     if (dto.managerId && newManager && dto.managerId !== userId) {
       this.notifications.create(
         dto.managerId,
@@ -293,7 +285,6 @@ export class OrdersService {
     return updatedOrder;
   }
 
-  // --- ДОДАВАННЯ ТА ВИДАЛЕННЯ ПОЗИЦІЙ (без змін логіки сповіщень) ---
   async addItem(userId: number, orderId: number, dto: CreateOrderItemDto) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Замовлення не знайдено');
@@ -301,11 +292,9 @@ export class OrdersService {
     const itemType = dto.type || (dto.partId ? 'PART' : 'SERVICE');
     const quantity = dto.quantity || 1;
 
-    // Починаємо транзакцію
     return this.prisma.$transaction(async (tx) => {
-      let currentCostPrice = 0; // Собівартість для фіксації в чеку
+      let currentCostPrice = 0; 
 
-      // 1. Обробка ПОСЛУГИ
       if (itemType === 'SERVICE' && dto.serviceId) {
         const service = await tx.service.findUnique({ where: { id: dto.serviceId } });
         if (!service) throw new NotFoundException('Послугу не знайдено');
@@ -313,26 +302,22 @@ export class OrdersService {
         currentCostPrice = Number(service.costPrice) || 0;
       }
 
-      // 2. Обробка ЗАПЧАСТИНИ (зі списанням зі складу)
       if (itemType === 'PART' && dto.partId) {
         const part = await tx.part.findUnique({ where: { id: dto.partId } });
         if (!part) throw new NotFoundException('Запчастину не знайдено');
 
-        // Перевіряємо, чи вистачає деталей на складі
         if (part.stockQuantity < quantity) {
           throw new BadRequestException(`Недостатньо на складі! Залишок: ${part.stockQuantity} шт.`);
         }
 
         currentCostPrice = Number(part.purchasePrice) || 0;
 
-        // Зменшуємо залишок на складі
         await tx.part.update({
           where: { id: part.id },
           data: { stockQuantity: { decrement: quantity } },
         });
       }
 
-      // 3. Створюємо позицію в чеку
       const item = await tx.orderItem.create({
         data: {
           orderId,
@@ -341,17 +326,13 @@ export class OrdersService {
           name: dto.name,
           quantity: quantity,
           price: dto.price,
-          type: itemType,
-          // Щоб розкоментувати наступний рядок, додай `costPrice Decimal?` у модель OrderItem
-          // costPrice: currentCostPrice, 
+          type: itemType, 
         },
         include: { service: true, part: true },
       });
 
-      // 4. Перераховуємо загальну суму замовлення
       await this.recalcTotal(tx, orderId);
 
-      // 5. Записуємо історію
       const typeLabel = itemType === 'PART' ? 'запчастину' : 'послугу';
       await tx.orderHistory.create({
         data: {

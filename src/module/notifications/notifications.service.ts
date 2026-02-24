@@ -6,14 +6,12 @@ import { UserRole } from '@prisma/client';
 export class NotificationsService {
     constructor(private prisma: PrismaService) { }
 
-    // --- Створити одне повідомлення ---
     async create(userId: number, title: string, message: string, type: string, orderId?: number) {
         return this.prisma.notification.create({
             data: { userId, title, message, type, orderId: orderId || null },
         });
     }
 
-    // --- Масове створення (список userId) ---
     async notifyMany(userIds: number[], title: string, message: string, type: string, orderId?: number) {
         if (userIds.length === 0) return;
 
@@ -28,7 +26,6 @@ export class NotificationsService {
         });
     }
 
-    // --- Сповістити всіх з певною роллю ---
     async notifyByRoles(roles: UserRole[], title: string, message: string, type: string, orderId?: number) {
         const users = await this.prisma.user.findMany({
             where: { role: { in: roles }, deletedAt: null },
@@ -39,7 +36,6 @@ export class NotificationsService {
         return this.notifyMany(userIds, title, message, type, orderId);
     }
 
-    // --- Мої повідомлення ---
     async findAll(userId: number) {
         return this.prisma.notification.findMany({
             where: { userId },
@@ -47,7 +43,6 @@ export class NotificationsService {
         });
     }
 
-    // --- Кількість непрочитаних ---
     async countUnread(userId: number) {
         const count = await this.prisma.notification.count({
             where: { userId, isRead: false },
@@ -55,7 +50,6 @@ export class NotificationsService {
         return { count };
     }
 
-    // --- Позначити як прочитане ---
     async markAsRead(userId: number, notificationId: number) {
         return this.prisma.notification.updateMany({
             where: { id: notificationId, userId },
@@ -63,7 +57,6 @@ export class NotificationsService {
         });
     }
 
-    // --- Позначити всі як прочитані ---
     async markAllAsRead(userId: number) {
         return this.prisma.notification.updateMany({
             where: { userId, isRead: false },
