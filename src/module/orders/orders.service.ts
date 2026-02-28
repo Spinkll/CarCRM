@@ -327,6 +327,8 @@ export class OrdersService {
           quantity: quantity,
           price: dto.price,
           type: itemType, 
+          mechanicId: dto.mechanicId || null,
+          costPrice: currentCostPrice,
         },
         include: { service: true, part: true },
       });

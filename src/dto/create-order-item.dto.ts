@@ -9,6 +9,10 @@ export class CreateOrderItemDto {
     @IsOptional()
     partId?: number;
 
+    @IsInt()
+    @IsOptional()
+    mechanicId?: number;
+
     @IsString()
     @IsNotEmpty()
     name: string;
@@ -18,16 +22,16 @@ export class CreateOrderItemDto {
     @IsOptional()
     quantity?: number = 1;
 
-    @IsString() // ДОДАНО: обов'язково вказуємо тип для sku
+    @IsString() 
     @IsOptional()
     sku?: string;
 
     @IsNumber()
     @Min(0)
-    price: number; // Це фінальна ціна продажу клієнту (retailPrice або Service.price)
+    price: number; 
 
     @IsString()
     @IsIn(['SERVICE', 'PART']) 
-    @IsOptional() // ВИПРАВЛЕНО: прибрано зайвий "!"
+    @IsOptional() 
     type?: string;
 }
