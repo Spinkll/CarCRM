@@ -9,7 +9,7 @@ export class AppointmentsService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService, // <-- ІНЖЕКТИМО СЕРВІС СПОВІЩЕНЬ
-  ) {}
+  ) { }
 
   // 1. Отримати всі записи (для Календаря)
   async findAll() {
@@ -47,7 +47,7 @@ export class AppointmentsService {
   async findByMechanic(mechanicId: number) {
     return this.prisma.appointment.findMany({
       where: {
-        order: { mechanicId: mechanicId } 
+        order: { mechanicId: mechanicId }
       },
       include: {
         order: {
@@ -80,19 +80,19 @@ export class AppointmentsService {
   // ДОДАНО параметр changedById, щоб знати, хто саме переносить запис
   async reschedule(id: number, scheduledAt: string, estimatedMin?: number, changedById?: number) {
     // Спочатку знаходимо запис РАЗОМ із даними про авто, щоб дізнатися ID клієнта
-    const appointment = await this.prisma.appointment.findUnique({ 
+    const appointment = await this.prisma.appointment.findUnique({
       where: { id },
       include: {
         order: { include: { car: true } }
       }
     });
-    
+
     if (!appointment) throw new NotFoundException('Запис не знайдено');
 
     // Оновлюємо запис у базі
     const updatedAppointment = await this.prisma.appointment.update({
       where: { id },
-      data: { 
+      data: {
         scheduledAt: new Date(scheduledAt),
         ...(estimatedMin && { estimatedMin }) // Оновлюємо тривалість, якщо передана
       },
@@ -100,12 +100,12 @@ export class AppointmentsService {
 
     // 🔔 СПОВІЩЕННЯ: Якщо запис переносить Менеджер/Адмін (тобто changedById не дорівнює ID клієнта)
     const clientId = appointment.order?.car?.userId;
-    
+
     if (clientId && changedById !== clientId) {
-      const newDate = new Date(scheduledAt).toLocaleString('uk-UA', { 
-        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+      const newDate = new Date(scheduledAt).toLocaleString('uk-UA', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
       });
-      
+
       this.notifications.create(
         clientId,
         'Змінено час візиту',
@@ -124,9 +124,9 @@ export class AppointmentsService {
       throw new BadRequestException('Неправильний формат дати. Використовуйте YYYY-MM-DD');
     }
 
-    const workStartHour = 8;  
-    const workEndHour = 18;  
-    const slotDurationMinutes = 60; 
+    const workStartHour = 8;
+    const workEndHour = 18;
+    const slotDurationMinutes = 60;
 
     const startOfDay = new Date(searchDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -136,41 +136,46 @@ export class AppointmentsService {
 
     const existingAppointments = await this.prisma.appointment.findMany({
       where: {
-        scheduledAt: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-        status: {
-          in: ['SCHEDULED', 'CONFIRMED', 'ARRIVED'], 
-        },
+        scheduledAt: { gte: startOfDay, lte: endOfDay },
+        status: { in: ['SCHEDULED', 'CONFIRMED', 'ARRIVED'] },
       },
       select: { scheduledAt: true },
     });
 
-    const busyTimes = existingAppointments.map((app) => {
-      const d = new Date(app.scheduledAt);
-      return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    const pendingRequests = await this.prisma.serviceRequest.findMany({
+      where: {
+        scheduledAt: { gte: startOfDay, lte: endOfDay },
+        status: { in: ['NEW', 'IN_REVIEW'] }
+      },
+      select: { scheduledAt: true }
     });
 
+    const busyTimes = [...existingAppointments, ...pendingRequests]
+      .filter(item => item.scheduledAt)
+      .map((item) => {
+        const d = new Date(item.scheduledAt!);
+        return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+      });
+
     const availableSlots: string[] = [];
-    
+
     let currentSlot = new Date(startOfDay);
     currentSlot.setHours(workStartHour, 0, 0, 0);
 
     const endTime = new Date(startOfDay);
     endTime.setHours(workEndHour, 0, 0, 0);
 
-    const now = new Date(); 
+    const now = new Date();
 
     while (currentSlot < endTime) {
       if (currentSlot > now) {
         const timeString = `${currentSlot.getHours().toString().padStart(2, '0')}:${currentSlot.getMinutes().toString().padStart(2, '0')}`;
-        
+
         if (!busyTimes.includes(timeString)) {
           availableSlots.push(timeString);
         }
       }
-      
+
       currentSlot.setMinutes(currentSlot.getMinutes() + slotDurationMinutes);
     }
 

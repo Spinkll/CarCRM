@@ -8,9 +8,10 @@ import { UsersModule } from '../users/users.module';
 import { AccessTokenStrategy } from 'src/jwt/accessToken.strategy';
 import { ConfigModule } from '@nestjs/config';
 import { MailModule } from '../mail/mail.module';
+import { PrismaModule } from 'src/db/prisma.module';
 
 @Module({
-  imports: [PassportModule, JwtModule.register({}), UsersModule, ConfigModule, MailModule],
+  imports: [PassportModule, JwtModule.register({}), UsersModule, ConfigModule, MailModule,PrismaModule],
   providers: [AuthService, AccessTokenStrategy, RefreshTokenStrategy],
   controllers: [AuthController]
 })

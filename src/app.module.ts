@@ -11,14 +11,15 @@ import { NotificationsModule } from './module/notifications/notifications.module
 import { ConfigModule } from '@nestjs/config';
 import { ServiceRequestsModule } from './module/service-requests/service-requests.module';
 import { AppointmentsModule } from './module/appointments/appointments.module';
-import { CatalogModule } from './module/services/catalog.module';
+import { CatalogModule } from './module/catalog/catalog.module';
 import { InventoryModule } from './module/inventory/inventory.module';
 import { PayrollModule } from './module/payroll/payroll.module';
 import { PaymentModule } from './module/payment/payment.module';
+import { ServicesModule } from './module/services/services.module';
 
 
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule,CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule],
+  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule,CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule, ServicesModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -56,6 +56,10 @@ export class AuthService {
     if (!isMatch)
       throw new UnauthorizedException('Невірний email або пароль');
 
+    if (user.isBlocked) {
+    throw new ForbiddenException(`Ваш акаунт заблоковано. Причина: ${user.blockReason || 'Зверніться до адміністратора'}`);
+  }
+
     const tokens = await this.generateTokens(user);
 
     await this.updateRefreshTokenHash(user.id, tokens.refresh_token);

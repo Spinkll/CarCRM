@@ -167,7 +167,7 @@ if (existingUser) {
     return this.prisma.user.findMany({
       where: { role: { in: roles } },
       select: { 
-        id: true, firstName: true, lastName: true, email: true, phone: true, role: true, createdAt: true, commissionRate: true, baseSalary:true 
+        id: true, firstName: true, lastName: true, email: true, phone: true, role: true, createdAt: true, commissionRate: true, baseSalary:true, isBlocked:true 
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -342,4 +342,38 @@ if (existingUser) {
     };
   }
 
+  async blockUser(id: number, reason?: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    
+    if (!user) throw new NotFoundException('Користувача не знайдено');
+    if (user.role === 'ADMIN') throw new ForbiddenException('Адміністратора заблокувати неможливо');
+    if (user.isBlocked) throw new BadRequestException('Користувач вже заблокований');
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { 
+        isBlocked: true, 
+        blockReason: reason || 'Причина не вказана',
+        hashedRefreshToken: null 
+      },
+      select: { id: true, firstName: true, lastName: true, isBlocked: true, blockReason: true }
+    });
+  }
+
+  async unblockUser(id: number) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    
+    if (!user) throw new NotFoundException('Користувача не знайдено');
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { 
+        isBlocked: false, 
+        blockReason: null 
+      },
+      select: { id: true, firstName: true, lastName: true, isBlocked: true }
+    });
+  }
 }
+
+

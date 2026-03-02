@@ -1,12 +1,16 @@
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { UnauthorizedException, Injectable } from '@nestjs/common'; // Змінив Forbidden на Unauthorized
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from 'src/db/prisma.service'; // Вкажи свій правильний шлях до Prisma
 
 @Injectable()
 export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    private prisma: PrismaService // 👇 Додали Prisma сюди
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: configService.get<string>('JWT_REFRESH_SECRET')!, 
@@ -18,6 +22,17 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refres
     const refreshToken = req.get('Authorization')
       ?.replace('Bearer', '')
       .trim();
+
+    // 👇 1. Шукаємо юзера в базі
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub }
+    });
+
+    // 👇 2. ПЕРЕВІРКИ БЕЗПЕКИ 👇
+    if (!user) throw new UnauthorizedException('Користувача не знайдено');
+    if (user.deletedAt) throw new UnauthorizedException('Ваш акаунт видалено');
+    if (user.isBlocked) throw new UnauthorizedException('Акаунт заблоковано. Оновлення токена заборонено.');
+    // 👆 ---------------------- 👆
 
     return {
       id: payload.sub, 

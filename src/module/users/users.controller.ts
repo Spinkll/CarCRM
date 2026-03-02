@@ -70,4 +70,19 @@ export class UsersController {
     return this.usersService.updateUser(req.user.id, req.user.role, id, dto);
   }
 
+  @Patch(':id/block')
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  async blockUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('reason') reason?: string 
+  ) {
+    return this.usersService.blockUser(id, reason);
+  }
+
+  @Patch(':id/unblock')
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))
+  async unblockUser(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.unblockUser(id);
+  }
+
 }
