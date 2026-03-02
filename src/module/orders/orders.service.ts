@@ -40,7 +40,7 @@ export class OrdersService {
           mileage: currentMileage,
           description: dto.description,
           totalAmount: 0,
-          status: 'CONFIRMED', 
+          status: 'CONFIRMED',
         },
       });
 
@@ -49,8 +49,8 @@ export class OrdersService {
           data: {
             orderId: createdOrder.id,
             scheduledAt: new Date(dto.scheduledAt),
-            estimatedMin: 60, 
-            status: 'SCHEDULED', 
+            estimatedMin: 60,
+            status: 'SCHEDULED',
           }
         });
       }
@@ -139,9 +139,9 @@ export class OrdersService {
   }
 
   async updateStatus(userId: number, id: number, dto: UpdateOrderStatusDto) {
-    const order = await this.prisma.order.findUnique({ 
+    const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { car: { select: { userId: true } } } 
+      include: { car: { select: { userId: true } } }
     });
     if (!order) throw new NotFoundException('Замовлення не знайдено');
 
@@ -171,10 +171,10 @@ export class OrdersService {
 
     const notifyIds = new Set<number>();
     notifyIds.add(order.car.userId); // Клієнт
-    if (updatedOrder.managerId) notifyIds.add(updatedOrder.managerId); 
+    if (updatedOrder.managerId) notifyIds.add(updatedOrder.managerId);
     if (updatedOrder.mechanicId) notifyIds.add(updatedOrder.mechanicId);
 
-    notifyIds.delete(userId); 
+    notifyIds.delete(userId);
 
     if (notifyIds.size > 0) {
       this.notifications.notifyMany(
@@ -271,7 +271,7 @@ export class OrdersService {
         orderId,
       ).catch((e) => console.error('Помилка сповіщення менеджера:', e));
     }
-    
+
     if (dto.mechanicId && newMechanic && dto.mechanicId !== userId) {
       this.notifications.create(
         dto.mechanicId,
@@ -293,13 +293,28 @@ export class OrdersService {
     const quantity = dto.quantity || 1;
 
     return this.prisma.$transaction(async (tx) => {
-      let currentCostPrice = 0; 
+      let currentCostPrice = 0;
 
-      if (itemType === 'SERVICE' && dto.serviceId) {
-        const service = await tx.service.findUnique({ where: { id: dto.serviceId } });
-        if (!service) throw new NotFoundException('Послугу не знайдено');
-        
-        currentCostPrice = Number(service.costPrice) || 0;
+      if (itemType === 'SERVICE') {
+        if (dto.serviceId) {
+          const service = await tx.service.findUnique({ where: { id: dto.serviceId } });
+          if (!service) throw new NotFoundException('Послугу не знайдено');
+        }
+
+        let mechanicRate = 30;
+
+        if (dto.mechanicId) {
+          const mechanic = await tx.user.findUnique({
+            where: { id: dto.mechanicId },
+            select: { commissionRate: true }
+          });
+
+          if (mechanic && mechanic.commissionRate) {
+            mechanicRate = mechanic.commissionRate;
+          }
+        }
+
+        currentCostPrice = (Number(dto.price || 0) * mechanicRate) / 100;
       }
 
       if (itemType === 'PART' && dto.partId) {
@@ -326,7 +341,7 @@ export class OrdersService {
           name: dto.name,
           quantity: quantity,
           price: dto.price,
-          type: itemType, 
+          type: itemType,
           mechanicId: dto.mechanicId || null,
           costPrice: currentCostPrice,
         },

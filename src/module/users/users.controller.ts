@@ -6,7 +6,7 @@ import { RolesGuard } from 'src/guards/roles.guard';
 import { UsersService } from './users.service';
 import { RegisterDto } from 'src/dto/auth';
 import { CreateCustomerDto } from 'src/dto/create-customer.dto';
-import { ChangePasswordDto } from 'src/dto/user';
+import { ChangePasswordDto, UpdateUserDto } from 'src/dto/user';
 
 @Controller('users')
 export class UsersController {
@@ -58,6 +58,16 @@ export class UsersController {
     @Body() dto: ChangePasswordDto
   ) {
     return this.usersService.changePassword(req.user.id, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch(':id')
+  async updateUser(
+    @Req() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUserDto
+  ) {
+    return this.usersService.updateUser(req.user.id, req.user.role, id, dto);
   }
 
 }

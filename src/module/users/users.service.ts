@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/db/prisma.service';
 import { RegisterDto } from 'src/dto/auth';
 import * as bcrypt from 'bcrypt';
@@ -71,17 +71,53 @@ if (existingUser) {
     return user;
   }
 
-  async updateUser(id: number, dto: UpdateUserDto) {
-  const data: any = { ...dto };
+  async updateUser(requesterId: number, requesterRole: string, targetUserId: number, dto: UpdateUserDto) {
+    // 1. Перевіряємо, чи існує користувач
+    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new NotFoundException('Користувача не знайдено');
 
-  if (dto.password) {
-    data.password = await bcrypt.hash(dto.password, 10);
-  }
+    // 2. БЕЗПЕКА: Хто робить запит?
+    const isAdminOrManager = requesterRole === 'ADMIN' || requesterRole === 'MANAGER';
 
-  return this.prisma.user.update({
-    where: { id },
-    data,
-  });
+    if (!isAdminOrManager) {
+      // Клієнт або механік може редагувати ТІЛЬКИ свій профіль
+      if (requesterId !== targetUserId) {
+        throw new ForbiddenException('Ви можете редагувати лише власний профіль');
+      }
+      
+      // ВИРІЗАЄМО секретні поля, щоб звичайний юзер не міг їх змінити
+      delete dto.role;
+      delete dto.commissionRate;
+    }
+
+    // 3. Валідація відсотка зарплати (його можна ставити тільки механікам)
+    const newRole = dto.role || user.role;
+    if (dto.commissionRate !== undefined && newRole !== 'MECHANIC') {
+      throw new BadRequestException('Відсоток зарплати можна встановлювати тільки механікам');
+    }
+
+    // 4. Підготовка даних (твоя логіка хешування)
+    const data: any = { ...dto };
+
+    if (dto.password) {
+      data.password = await bcrypt.hash(dto.password, 10);
+    }
+
+    // 5. Зберігаємо в базу
+    return this.prisma.user.update({
+      where: { id: targetUserId },
+      data,
+      // Повертаємо безпечні поля (без пароля)
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        commissionRate: true,
+      },
+    });
   }
   
   async update(userId: number, data: any) {
@@ -92,14 +128,46 @@ if (existingUser) {
   }
 
   async deleteUser(id: number) {
-    return this.prisma.user.delete({ where: { id } });
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('Пользователь не найден');
+
+    if (user.deletedAt) {
+      throw new BadRequestException('Пользователь уже удален (находится в архиве)');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.car.updateMany({
+        where: { userId: id, deletedAt: null }, 
+        data: { deletedAt: new Date() },
+      });
+
+      const deletedUser = await tx.user.update({
+        where: { id },
+        data: { 
+          deletedAt: new Date(),
+          hashedRefreshToken: null 
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          deletedAt: true,
+        }
+      });
+
+      return {
+        message: 'Пользователь и его автомобили успешно перенесены в архив',
+        user: deletedUser
+      };
+    });
   }
 
   async findAllByRoles(roles: UserRole[]) {
     return this.prisma.user.findMany({
       where: { role: { in: roles } },
       select: { 
-        id: true, firstName: true, lastName: true, email: true, phone: true, role: true, createdAt: true 
+        id: true, firstName: true, lastName: true, email: true, phone: true, role: true, createdAt: true, commissionRate: true, baseSalary:true 
       },
       orderBy: { createdAt: 'desc' }
     });

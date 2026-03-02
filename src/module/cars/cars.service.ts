@@ -2,7 +2,9 @@ import {
   Injectable, 
   NotFoundException, 
   ConflictException, 
-  InternalServerErrorException 
+  InternalServerErrorException, 
+  BadRequestException,
+  ForbiddenException
 } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { UserRole } from 'generated/prisma/client';
@@ -111,20 +113,21 @@ export class CarsService {
     }
   }
 
-  async remove(userId: number, carId: number, role: UserRole) {
-    await this.findOne(userId, carId, role);
+  async deleteCar(carId: number, userId?: number, userRole?: string) {
+    const car = await this.prisma.car.findUnique({ where: { id: carId } });
+    if (!car) throw new NotFoundException('Автомобиль не найден');
+    if (car.deletedAt) throw new BadRequestException('Автомобиль уже в архиве');
 
-    try {
-      return await this.prisma.car.delete({
-        where: { id: carId },
-      });
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        if (error.code === 'P2025') {
-          throw new NotFoundException('Машину для видалення не знайдено.');
-        }
-      }
-      throw new InternalServerErrorException('Помилка при видаленні автомобіля');
+    if (userRole === 'CLIENT' && car.userId !== userId) {
+      throw new ForbiddenException('Вы можете удалять только свои автомобили');
     }
+
+    // Мягкое удаление
+    await this.prisma.car.update({
+      where: { id: carId },
+      data: { deletedAt: new Date() },
+    });
+
+    return { message: `Автомобиль ${car.brand} ${car.model} удален` };
   }
 }

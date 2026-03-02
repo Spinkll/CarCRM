@@ -54,7 +54,10 @@ export class CarsController {
   }
 
   @Delete(':id')
-  remove(@Req() req, @Param('id', ParseIntPipe) id: number) {
-    return this.carsService.remove(req.user.id, id, req.user.role);
+  async deleteCar(
+    @Req() req, 
+    @Param('id', ParseIntPipe) id: number
+  ) {
+    return this.carsService.deleteCar(id, req.user.id, req.user.role);
   }
 }

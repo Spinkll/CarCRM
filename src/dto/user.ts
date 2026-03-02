@@ -1,5 +1,5 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
-
+import { IsOptional, IsEmail, IsString, MinLength, IsInt, Min, Max, IsEnum, IsNotEmpty, IsNumber } from 'class-validator';
+import { UserRole } from '@prisma/client';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -24,6 +24,21 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsEnum(UserRole, { message: 'Невірна роль користувача' })
+  role?: UserRole;
+
+  @IsOptional()
+  @IsInt({ message: 'Відсоток має бути цілим числом' })
+  @Min(0, { message: 'Відсоток не може бути менше 0' })
+  @Max(100, { message: 'Відсоток не може бути більше 100' })
+  commissionRate?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'Ставка має бути числом' })
+  @Min(0, { message: 'Ставка не може бути від\'ємною' })
+  baseSalary?: number;
 }
 
 export class ChangePasswordDto {

@@ -14,10 +14,11 @@ import { AppointmentsModule } from './module/appointments/appointments.module';
 import { CatalogModule } from './module/services/catalog.module';
 import { InventoryModule } from './module/inventory/inventory.module';
 import { PayrollModule } from './module/payroll/payroll.module';
+import { PaymentModule } from './module/payment/payment.module';
 
 
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule,CatalogModule, InventoryModule, InventoryModule, PayrollModule],
+  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule,CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule],
   controllers: [AppController],
   providers: [AppService],
 })
