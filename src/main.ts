@@ -24,11 +24,15 @@ async function bootstrap() {
   );
   
   app.enableCors({
-    origin: '*', 
+    origin: [
+      'http://localhost:5173', 
+      'http://localhost:3000', 
+      'https://car-crm-frontend.vercel.app', 
+    ],
+    credentials: true, 
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization',
   });
-
   await app.listen(process.env.PORT || 3000);
 }
 bootstrap();
