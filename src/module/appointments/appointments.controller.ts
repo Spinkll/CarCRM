@@ -1,7 +1,7 @@
 import { Controller, Get, Patch, Body, Param, UseGuards, Req, ParseIntPipe, BadRequestException, Query } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { AuthGuard } from '@nestjs/passport';
-import { UserRole } from '@prisma/client';
+import { UserRole } from 'generated/prisma/enums';
 import { UpdateAppointmentStatusDto } from 'src/dto/update-appointment-status.dto';
 import { RescheduleAppointmentDto } from 'src/dto/reschedule-appointment.dto';
 

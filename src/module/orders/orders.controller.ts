@@ -8,7 +8,7 @@ import { AssignOrderDto } from 'src/dto/assign-order.dto';
 import { CreateOrderItemDto } from 'src/dto/create-order-item.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/guards/roles.guard';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus } from 'generated/prisma/enums';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('orders')

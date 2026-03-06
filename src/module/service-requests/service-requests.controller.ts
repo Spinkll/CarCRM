@@ -1,9 +1,9 @@
 import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
 import { ServiceRequestsService } from './service-requests.service';
 import { AuthGuard } from '@nestjs/passport';
-import { UserRole } from '@prisma/client';
 import { CreateServiceRequestDto } from 'src/dto/create-service-request.dto';
 import { ApproveServiceRequestDto } from 'src/dto/approve-service-request.dto';
+import { UserRole } from 'generated/prisma/enums';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('service-requests')

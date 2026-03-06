@@ -6,8 +6,9 @@ import {
   BadRequestException,
   ForbiddenException
 } from '@nestjs/common';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
+
 import { UserRole } from 'generated/prisma/client';
+import { PrismaClientKnownRequestError } from 'generated/prisma/internal/prismaNamespace';
 import { PrismaService } from 'src/db/prisma.service';
 import { CreateCarDto } from 'src/dto/create-car.dto';
 import { UpdateCarDto } from 'src/dto/update-car.dto';

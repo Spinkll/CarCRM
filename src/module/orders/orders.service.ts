@@ -3,7 +3,7 @@ import { PrismaService } from 'src/db/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from 'src/dto/create-order.dto';
 import { AssignOrderDto } from 'src/dto/assign-order.dto';
 import { CreateOrderItemDto } from 'src/dto/create-order-item.dto';
-import { OrderStatus, UserRole } from '@prisma/client';
+import { OrderStatus, UserRole } from 'generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 
 const STATUS_LABELS: Record<string, string> = {

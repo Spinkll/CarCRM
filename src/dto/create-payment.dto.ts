@@ -1,5 +1,6 @@
 import { IsNumber, Min, IsEnum } from 'class-validator';
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod } from 'generated/prisma/enums';
+
 
 export class CreatePaymentDto {
   @IsNumber({}, { message: 'Сума має бути числом' })

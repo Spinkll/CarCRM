@@ -1,5 +1,6 @@
 import { IsString, IsNotEmpty, IsInt, IsOptional, IsEnum, IsDateString } from 'class-validator';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus } from 'generated/prisma/enums';
+
 
 export class CreateOrderDto {
   @IsInt()
