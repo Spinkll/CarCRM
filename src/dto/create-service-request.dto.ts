@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class CreateServiceRequestDto {
   @IsInt()
@@ -13,4 +13,9 @@ export class CreateServiceRequestDto {
   @IsDateString()
   @IsOptional()
   scheduledAt?: string;
+
+  @IsNotEmpty()
+  @IsInt()
+  @Min(0, { message: 'Пробіг не може бути від\'ємним' })
+  mileage: number; 
 }

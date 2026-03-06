@@ -68,6 +68,7 @@ model ServiceRequest {
   reason      String
   description String?
   status      ServiceRequestStatus @default(NEW)
+  mileage     Int?
 
   scheduledAt DateTime?
 

@@ -6,11 +6,13 @@ import {
   BadRequestException,
   ForbiddenException
 } from '@nestjs/common';
+import { Prisma } from 'generated/prisma/browser';
 
 import { UserRole } from 'generated/prisma/client';
 import { PrismaClientKnownRequestError } from 'generated/prisma/internal/prismaNamespace';
 import { PrismaService } from 'src/db/prisma.service';
 import { CreateCarDto } from 'src/dto/create-car.dto';
+import { GetCarHistoryDto } from 'src/dto/get-car-history.dto';
 import { UpdateCarDto } from 'src/dto/update-car.dto';
 
 
@@ -131,4 +133,84 @@ export class CarsService {
 
     return { message: `Автомобиль ${car.brand} ${car.model} удален` };
   }
+
+  async getCarHistory(carId: number, filters: GetCarHistoryDto) {
+    // 1. Перевіряємо, чи існує автомобіль і чи не видалений він
+    const car = await this.prisma.car.findUnique({
+      where: { id: carId, deletedAt: null },
+      include: { user: true } // Одразу підтягнемо власника для шапки
+    });
+
+    if (!car) {
+      throw new NotFoundException('Автомобіль не знайдено');
+    }
+
+    // 2. Збираємо динамічні фільтри для замовлень
+    const whereClause: Prisma.OrderWhereInput = {
+      carId: carId,
+      deletedAt: null, // Ігноруємо видалені замовлення
+      // Можеш додати статус, якщо хочеш показувати ТІЛЬКИ завершені:
+      // status: 'COMPLETED',
+    };
+
+    // Фільтр по даті створення або завершення
+    if (filters.startDate || filters.endDate) {
+      whereClause.createdAt = {}; // Шукаємо по даті створення замовлення
+      if (filters.startDate) whereClause.createdAt.gte = new Date(filters.startDate);
+      if (filters.endDate) whereClause.createdAt.lte = new Date(filters.endDate);
+    }
+
+    // Фільтр по вартості
+    if (filters.minAmount || filters.maxAmount) {
+      whereClause.totalAmount = {};
+      if (filters.minAmount) whereClause.totalAmount.gte = parseFloat(filters.minAmount);
+      if (filters.maxAmount) whereClause.totalAmount.lte = parseFloat(filters.maxAmount);
+    }
+
+    // 3. Робимо запит до бази
+    const history = await this.prisma.order.findMany({
+      where: whereClause,
+      orderBy: {
+        createdAt: 'desc', // Найновіші заїзди будуть зверху (ідеально для таймлайну)
+      },
+      include: {
+        items: true,      // Підтягуємо список виконаних робіт і запчастин (OrderItem)
+        mechanic: {       // Хто робив машину
+          select: { id: true, firstName: true, lastName: true }
+        },
+        manager: {        // Хто приймав замовлення
+          select: { id: true, firstName: true, lastName: true }
+        }
+      }
+    });
+
+    // 4. Формуємо красиву відповідь для фронтенду
+    return {
+      carInfo: {
+        id: car.id,
+        fullName: `${car.brand} ${car.model}`,
+        year: car.year,
+        vin: car.vin,
+        plate: car.plate,
+        color: car.color,
+        currentMileage: car.mileage,
+        owner: car.user ? `${car.user.firstName} ${car.user.lastName}` : 'Невідомо',
+      },
+      totalOrders: history.length,
+      // Рахуємо загальну суму, яку клієнт витратив на цю машину
+      totalSpent: history.reduce((sum, order) => sum + Number(order.totalAmount), 0),
+      timeline: history.map(order => ({
+        orderId: order.id,
+        status: order.status,
+        date: order.createdAt,
+        completedAt: order.completedAt,
+        mileageAtOrder: order.mileage,
+        description: order.description,
+        totalAmount: Number(order.totalAmount), // Prisma Decimal треба перетворити в Number для JSON
+        mechanic: order.mechanic,
+        items: order.items // Тут лежать твої послуги та запчастини
+      }))
+    };
+  }
 }
+

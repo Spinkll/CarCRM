@@ -27,13 +27,20 @@ export class OrdersService {
     const car = await this.prisma.car.findUnique({ where: { id: dto.vehicleId } });
     if (!car) throw new NotFoundException('Автомобіль не знайдено');
 
+    // Перевірка прав
     if (role === 'CLIENT' && car.userId !== Number(userId)) {
       throw new ForbiddenException(`Ви не можете створити замовлення на чужий автомобіль (Власник: ${car.userId}, Ви: ${userId})`);
+    }
+
+    // 👇 ДОДАНО: Перевірка на "скручений" або помилковий пробіг
+    if (dto.mileage && dto.mileage < car.mileage) {
+      throw new BadRequestException(`Вказаний пробіг (${dto.mileage} км) менший за поточний (${car.mileage} км)`);
     }
 
     const currentMileage = dto.mileage || car.mileage;
 
     const order = await this.prisma.$transaction(async (tx) => {
+      // 1. Створюємо замовлення
       const createdOrder = await tx.order.create({
         data: {
           carId: dto.vehicleId,
@@ -44,6 +51,15 @@ export class OrdersService {
         },
       });
 
+      // 👇 ДОДАНО: Оновлюємо загальний пробіг машини, якщо він виріс
+      if (currentMileage > car.mileage) {
+        await tx.car.update({
+          where: { id: car.id },
+          data: { mileage: currentMileage },
+        });
+      }
+
+      // 3. Створюємо запис у календарі (якщо є дата)
       if (dto.scheduledAt) {
         await tx.appointment.create({
           data: {
@@ -55,6 +71,7 @@ export class OrdersService {
         });
       }
 
+      // 4. Записуємо історію
       await tx.orderHistory.create({
         data: {
           orderId: createdOrder.id,
@@ -67,6 +84,7 @@ export class OrdersService {
       return createdOrder;
     });
 
+    // Сповіщення власнику, якщо створював не він
     if (role === 'ADMIN' || role === 'MANAGER') {
       this.notifications.create(
         car.userId,

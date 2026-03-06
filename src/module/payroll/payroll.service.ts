@@ -92,6 +92,7 @@ export class PayrollService {
       where: {
         role: { in: ['MANAGER', 'MECHANIC'] },
         deletedAt: null, // Тільки ті, хто зараз працює
+        createdAt: { lte: endOfMonth }, // Не включати тих, кого ще не найняли
       },
       select: { id: true, firstName: true, lastName: true, role: true, commissionRate: true, baseSalary: true }
     });

@@ -9,25 +9,28 @@ export class ServiceRequestsService {
     private notifications: NotificationsService
   ) {}
 
-  async createRequest(clientId: number, carId: number, reason: string, scheduledAt?: string) {
+  async createRequest(clientId: number, carId: number, reason: string, scheduledAt?: string, mileage?: number) {
     const car = await this.prisma.car.findUnique({ where: { id: carId } });
     if (!car || car.userId !== clientId) {
       throw new BadRequestException('Автомобиль не найден или не принадлежит вам');
+    }
+
+    // Залишаємо лише захист "від дурня", щоб клієнт не ввів пробіг менший за той, що вже є в базі
+    if (mileage && mileage < car.mileage) {
+      throw new BadRequestException(`Вказаний пробіг (${mileage} км) менший за поточний (${car.mileage} км). Перевірте дані.`);
     }
 
     // 👇 БЛОК ЖЕСТКОГО РЕЗЕРВИРОВАНИЯ ВРЕМЕНИ 👇
     if (scheduledAt) {
       const requestedTime = new Date(scheduledAt);
 
-      // 1. Проверяем таблицу ЗАЯВОК: нет ли чужой заявки на это время (в статусе NEW, IN_REVIEW или PROCESSED)
       const isTimeLockedByRequest = await this.prisma.serviceRequest.findFirst({
         where: {
           scheduledAt: requestedTime,
-          status: { notIn: ['REJECTED'] } // Если заявку отклонили или отменили, время освобождается!
+          status: { notIn: ['REJECTED'] }
         }
       });
 
-      // 2. Проверяем таблицу ЗАПИСЕЙ (Appointment): вдруг там уже стоит машина в боксе
       const isTimeLockedByAppointment = await this.prisma.appointment.findFirst({
         where: {
           scheduledAt: requestedTime,
@@ -35,34 +38,36 @@ export class ServiceRequestsService {
         }
       });
 
-      // Если кто-то уже "застолбил" это время заявкой или реальным заказом — не пускаем!
       if (isTimeLockedByRequest || isTimeLockedByAppointment) {
         throw new ConflictException('Это время уже забронировано или находится на рассмотрении. Пожалуйста, выберите другое время.');
       }
     }
     // 👆 КОНЕЦ БЛОКА РЕЗЕРВИРОВАНИЯ 👆
 
+    // 👇 Створюємо ТІЛЬКИ заявку. Базу машини не чіпаємо! 👇
     const request = await this.prisma.serviceRequest.create({
       data: {
         clientId,
         carId,
         reason,
+        mileage: mileage || null, // 👈 Зберігаємо пробіг виключно як інформацію всередині заявки
         status: 'NEW',
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       },
     });
 
-    const timeInfo = scheduledAt ? ` Желаемое время: ${new Date(scheduledAt).toLocaleString('uk-UA')}` : '';
+    const timeInfo = scheduledAt ? ` Бажаний час: ${new Date(scheduledAt).toLocaleString('uk-UA')}` : '';
+    const mileageInfo = mileage ? ` Заявлений пробіг: ${mileage} км.` : '';
     
     await this.notifications.notifyByRoles(
       ['ADMIN', 'MANAGER'], 
       'Нова заявка на сервіс', 
-      `Клієнт створив нову заявку для авто ${car.brand} ${car.model}. Причина: ${reason}.${timeInfo}`, 
+      `Клієнт створив нову заявку для авто ${car.brand} ${car.model}. Причина: ${reason}.${timeInfo}${mileageInfo}`, 
       'NEW_REQUEST'
     );
 
     return request;
-  }
+}
 
   async findAll() {
     return this.prisma.serviceRequest.findMany({

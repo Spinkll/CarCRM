@@ -17,9 +17,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             user: config.get('MAIL_USER'),
             pass: config.get('MAIL_PASSWORD'),
           },
-          logger: true, // Буде писати всі кроки в консоль
-  debug: true,  // Покаже детальний мережевий трафік
-  connectionTimeout: 10000,
         },
       }),
       inject: [ConfigService],
