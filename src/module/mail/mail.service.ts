@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
@@ -129,9 +129,11 @@ export class MailService {
     }
 
     async sendVerificationEmail(email: string, name: string, verifyLink: string) {
-        const appName = 'WagGarage CRM';
+    console.log(`Начинаем отправку письма на ${email}...`);
+    const appName = 'WagGarage CRM';
 
-        await this.mailerService.sendMail({
+    try {
+        const result = await this.mailerService.sendMail({
             to: email,
             subject: `Підтвердження реєстрації — ${appName}`,
             html: `
@@ -183,5 +185,16 @@ export class MailService {
         </html>
       `,
         });
+
+        console.log('✅ ПИСЬМО УСПЕШНО ОТПРАВЛЕНО!', result);
+        return result;
+
+    } catch (error) {
+        // 👇 Саме цей блок зловить і покаже нам справжню причину помилки 👇
+        console.error('❌ ОШИБКА ОТПРАВКИ ПИСЬМА SMTP:');
+        console.error(error);
+        
+        throw new InternalServerErrorException('Не удалось отправить письмо: ' + error.message);
     }
+}
 }
