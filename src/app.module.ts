@@ -16,11 +16,9 @@ import { InventoryModule } from './module/inventory/inventory.module';
 import { PayrollModule } from './module/payroll/payroll.module';
 import { PaymentModule } from './module/payment/payment.module';
 import { ServicesModule } from './module/services/services.module';
-import { WayforpayModule } from './module/wayforpay/wayforpay.module';
-import { LiqpayModule } from './module/liqpay/liqpay.module';
-
+import { StripeModule } from './module/stripe/stripe.module';
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, MailModule, NotificationsModule, ConfigModule, ServiceRequestsModule, AppointmentsModule, CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule, ServicesModule, WayforpayModule, LiqpayModule],
+  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, StripeModule, MailModule, NotificationsModule, ConfigModule.forRoot({ isGlobal: true }), ServiceRequestsModule, AppointmentsModule, CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule, ServicesModule],
   controllers: [AppController],
   providers: [AppService],
 })
