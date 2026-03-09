@@ -5,6 +5,7 @@ import { AssignOrderDto } from 'src/dto/assign-order.dto';
 import { CreateOrderItemDto } from 'src/dto/create-order-item.dto';
 import { OrderStatus, UserRole } from 'generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
+import PDFDocument = require('pdfkit');
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Очікує',
@@ -422,6 +423,133 @@ export class OrdersService {
     await tx.order.update({
       where: { id: orderId },
       data: { totalAmount: total },
+    });
+  }
+
+  async generateWorkOrderPdf(orderId: number): Promise<Buffer> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        car: { include: { user: true } },
+        items: true,
+      },
+    });
+
+    if (!order) throw new NotFoundException('Замовлення не знайдено');
+
+    const services = order.items.filter((i) => i.type === 'SERVICE');
+    const parts = order.items.filter((i) => i.type === 'PART');
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const buffers: Buffer[] = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      // Підключаємо шрифт з підтримкою кирилиці
+      const fontPath = require('path').join(process.cwd(), 'src', 'assets', 'fonts', 'Roboto-Regular.ttf');
+      doc.font(fontPath);
+
+      // ─── ШАПКА СТО ───
+      doc.fontSize(20).text('СТО "WAGGarage"', { align: 'center' });
+      doc.fontSize(10).text('м. Запоріжжя, вул. Шкільна, 32 | тел. +380 XX XXX XX XX', { align: 'center' });
+      doc.moveDown(0.5);
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(1).stroke();
+      doc.moveDown(1);
+
+      // ─── НАЗВА ДОКУМЕНТА ───
+      doc.fontSize(16).text(`ЗАКАЗ-НАРЯД № ${order.id}`, { align: 'center' });
+      doc.fontSize(12).text('(Акт виконаних робіт / прийому-передачі авто)', { align: 'center' });
+      doc.moveDown(1.5);
+
+      // ─── ІНФОРМАЦІЯ ПРО КЛІЄНТА ТА АВТО ───
+      const dateStr = new Date(order.createdAt).toLocaleDateString('uk-UA');
+      
+      // Ліва колонка (Клієнт)
+      doc.fontSize(11);
+      doc.text(`Дата оформлення: ${dateStr}`, 50, doc.y);
+      doc.text(`Клієнт: ${order.car.user.firstName} ${order.car.user.lastName}`, 50, doc.y + 15);
+      doc.text(`Телефон: ${order.car.user.phone || '—'}`, 50, doc.y + 15);
+
+      // Права колонка (Автомобіль)
+      doc.text(`Автомобіль: ${order.car.brand} ${order.car.model}`, 300, doc.y + 15);
+      doc.text(`Держ. номер: ${order.car.plate}`, 300, doc.y + 15);
+      doc.text(`Пробіг: ${order.mileage || '—'} км`, 300, doc.y + 15);
+      
+      // Опис скарги/причини
+      doc.moveDown(3);
+      doc.fontSize(11).text(`Причина звернення: ${order.description || 'Планове ТО'}`, 50);
+      doc.moveDown(1);
+
+      // ─── ТАБЛИЦЯ РОБІТ ТА ЗАПЧАСТИН ───
+      const colX = { name: 50, qty: 320, price: 380, sum: 460 };
+
+      const drawTableHeader = () => {
+        doc.fontSize(10).font(fontPath);
+        const y = doc.y;
+        doc.text('Найменування', colX.name, y);
+        doc.text('К-ть', colX.qty, y);
+        doc.text('Ціна', colX.price, y);
+        doc.text('Сума', colX.sum, y);
+        doc.moveDown(0.3);
+        doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(0.5).stroke();
+        doc.moveDown(0.3);
+      };
+
+      const drawItemRow = (item: (typeof order.items)[0]) => {
+        const sum = (item.quantity * Number(item.price)).toFixed(2);
+        const y = doc.y;
+        doc.fontSize(10);
+        doc.text(item.name, colX.name, y, { width: 260 });
+        doc.text(item.quantity.toString(), colX.qty, y);
+        doc.text(Number(item.price).toFixed(2), colX.price, y);
+        doc.text(sum, colX.sum, y);
+        doc.moveDown(0.3);
+      };
+
+      // Послуги
+      if (services.length > 0) {
+        doc.fontSize(12).text('Виконані роботи:', 50);
+        doc.moveDown(0.3);
+        drawTableHeader();
+        services.forEach(drawItemRow);
+        doc.moveDown(1);
+      }
+
+      // Запчастини
+      if (parts.length > 0) {
+        doc.fontSize(12).text('Встановлені запчастини:', 50);
+        doc.moveDown(0.3);
+        drawTableHeader();
+        parts.forEach(drawItemRow);
+        doc.moveDown(1);
+      }
+
+      // ─── ПІДСУМОК ДО СПЛАТИ ───
+      const summaryY = doc.y;
+      doc.moveTo(50, summaryY).lineTo(545, summaryY).lineWidth(1).stroke();
+      doc.y = summaryY + 15;
+
+      doc.fontSize(14).text(`ЗАГАЛОМ ДО СПЛАТИ: ${Number(order.totalAmount).toFixed(2)} грн`, 50, doc.y, {
+        align: 'right',
+        width: 495,
+      });
+      doc.moveDown(3);
+
+      // ─── БЛОК ПІДПИСІВ ───
+      doc.fontSize(10).text('Претензій щодо якості виконаних робіт та комплектності автомобіля не маю.', 50, doc.y);
+      doc.moveDown(2);
+
+      const signY = doc.y;
+      doc.text('Автомобіль здав (Майстер):', 50, signY);
+      doc.text('________________________', 50, signY + 15);
+
+      doc.text('Автомобіль прийняв (Клієнт):', 350, signY);
+      doc.text('________________________', 350, signY + 15);
+
+      doc.end();
     });
   }
 }

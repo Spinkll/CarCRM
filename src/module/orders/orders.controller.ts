@@ -1,6 +1,7 @@
 import {
   Controller, Get, Post, Delete, Body, Patch,
   Param, UseGuards, Req, Query, ParseIntPipe,
+  Res,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from 'src/dto/create-order.dto';
@@ -9,6 +10,7 @@ import { CreateOrderItemDto } from 'src/dto/create-order-item.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { OrderStatus } from 'generated/prisma/enums';
+import type { Response } from 'express';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('orders')
@@ -79,5 +81,21 @@ export class OrdersController {
     @Param('itemId', ParseIntPipe) itemId: number,
   ) {
     return this.ordersService.removeItem(req.user.id, id, itemId);
+  }
+
+  @Get(':id/work-order')
+  async downloadWorkOrder(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response
+  ) {
+    const buffer = await this.ordersService.generateWorkOrderPdf(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="work-order-${id}.pdf"`, 
+      'Content-Length': buffer.length,
+    });
+
+    res.end(buffer);
   }
 }
