@@ -41,13 +41,16 @@ export class PayrollService {
       orderBy: { order: { updatedAt: 'desc' } },
     });
 
-    const totalEarnings = completedWorks.reduce((sum, item) => {
+    const commissionEarnings = completedWorks.reduce((sum, item) => {
       let earned = Number(item.costPrice) || 0;
       if (earned === 0 && Number((item as any).price) > 0) {
         earned = (Number((item as any).price) * fallbackRate) / 100;
       }
       return sum + earned * item.quantity;
     }, 0);
+
+    const baseSalary = Number(mechanicObj?.baseSalary) || 0;
+    const totalEarnings = baseSalary + commissionEarnings;
 
     return {
       period: {
@@ -56,7 +59,9 @@ export class PayrollService {
         month: targetMonth + 1,
         year: targetYear,
       },
-      totalEarnings,
+      commissionEarnings,
+      baseSalary,
+      totalEarnings, // Total sum (Salary + Commission)
       worksCount: completedWorks.length,
       works: completedWorks.map((work: any) => {
         let earned = Number(work.costPrice) || 0;
