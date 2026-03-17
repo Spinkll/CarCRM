@@ -104,20 +104,31 @@ if (existingUser) {
     }
 
     // 5. Зберігаємо в базу
-    return this.prisma.user.update({
-      where: { id: targetUserId },
-      data,
-      // Повертаємо безпечні поля (без пароля)
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        role: true,
-        commissionRate: true,
-      },
-    });
+    try {
+      return await this.prisma.user.update({ // 👈 Додали await!
+        where: { id: targetUserId },
+        data,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+          commissionRate: true,
+        },
+      });
+    } catch (error) {
+      // P2002 — це офіційний код помилки Prisma для Unique Constraint Violation
+      if (error.code === 'P2002') {
+        // Можемо навіть дізнатися, яке саме поле викликало помилку (email чи phone)
+        const target = error.meta?.target?.[0] || 'даними';
+        throw new ConflictException(`Користувач з таким ${target} вже існує. Будь ласка, введіть інші дані.`);
+      }
+      
+      // Якщо сталася якась інша непередбачувана помилка бази — прокидаємо її далі
+      throw error;
+    }
   }
   
   async update(userId: number, data: any) {
