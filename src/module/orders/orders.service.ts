@@ -426,7 +426,8 @@ export class OrdersService {
     });
   }
 
-  async generateWorkOrderPdf(orderId: number): Promise<Buffer> {
+ async generateWorkOrderPdf(orderId: number): Promise<Buffer> {
+    // 1. Отримуємо дані про замовлення
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -436,6 +437,16 @@ export class OrdersService {
     });
 
     if (!order) throw new NotFoundException('Замовлення не знайдено');
+
+    // 2. Отримуємо налаштування компанії (беремо перший запис, оскільки це Singleton)
+    const settings = await this.prisma.companySettings.findFirst();
+    
+    // Формуємо динамічні дані для шапки (з фолбеками на випадок порожньої бази)
+    const companyName = settings?.companyName || 'СТО "WAGGarage"';
+    const city = settings?.city ? `${settings.city}, ` : '';
+    const address = settings?.addressLine || 'вул. Не вказана';
+    const phone = settings?.phone ? ` | тел. ${settings.phone}` : '';
+    const edrpou = settings?.edrpou ? ` | ЄДРПОУ: ${settings.edrpou}` : '';
 
     const services = order.items.filter((i) => i.type === 'SERVICE');
     const parts = order.items.filter((i) => i.type === 'PART');
@@ -452,9 +463,10 @@ export class OrdersService {
       const fontPath = require('path').join(process.cwd(), 'src', 'assets', 'fonts', 'Roboto-Regular.ttf');
       doc.font(fontPath);
 
-      // ─── ШАПКА СТО ───
-      doc.fontSize(20).text('СТО "WAGGarage"', { align: 'center' });
-      doc.fontSize(10).text('м. Запоріжжя, вул. Шкільна, 32 | тел. +380 XX XXX XX XX', { align: 'center' });
+      // ─── ШАПКА СТО (ДИНАМІЧНА) ───
+      doc.fontSize(20).text(companyName, { align: 'center' });
+      doc.fontSize(10).text(`${city}${address}${phone}${edrpou}`, { align: 'center' });
+      
       doc.moveDown(0.5);
       doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(1).stroke();
       doc.moveDown(1);
@@ -467,17 +479,20 @@ export class OrdersService {
       // ─── ІНФОРМАЦІЯ ПРО КЛІЄНТА ТА АВТО ───
       const dateStr = new Date(order.createdAt).toLocaleDateString('uk-UA');
       
+      const startBlockY = doc.y;
+
       // Ліва колонка (Клієнт)
       doc.fontSize(11);
-      doc.text(`Дата оформлення: ${dateStr}`, 50, doc.y);
-      doc.text(`Клієнт: ${order.car.user.firstName} ${order.car.user.lastName}`, 50, doc.y + 15);
-      doc.text(`Телефон: ${order.car.user.phone || '—'}`, 50, doc.y + 15);
+      doc.text(`Дата оформлення: ${dateStr}`, 50, startBlockY); // x=50, y=startBlockY
+      doc.text(`Клієнт: ${order.car.user.firstName} ${order.car.user.lastName}`, 50, doc.y + 15); // x=50, y=y+15
+      doc.text(`Телефон: ${order.car.user.phone || '—'}`, 50, doc.y + 15); // x=50, y=y+15
 
       // Права колонка (Автомобіль)
-      doc.text(`Автомобіль: ${order.car.brand} ${order.car.model}`, 300, doc.y + 15);
-      doc.text(`Держ. номер: ${order.car.plate}`, 300, doc.y + 15);
-      doc.text(`Пробіг: ${order.mileage || '—'} км`, 300, doc.y + 15);
-      
+      // Використовуємо той самий 'startBlockY', щоб вирівняти по горизонталі
+      doc.text(`Автомобіль: ${order.car.brand} ${order.car.model}`, 300, startBlockY); // x=300, y=startBlockY. *Фікс!*
+      // Тепер використовуємо відносний 'y' для інших рядків правої колонки
+      doc.text(`Держ. номер: ${order.car.plate}`, 300, doc.y + 15); // x=300, y=y+15
+      doc.text(`Пробіг: ${order.mileage || '—'} км`, 300, doc.y + 15); // x=300, y=y+15
       // Опис скарги/причини
       doc.moveDown(3);
       doc.fontSize(11).text(`Причина звернення: ${order.description || 'Планове ТО'}`, 50);

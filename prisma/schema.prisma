@@ -233,6 +233,53 @@ model Notification {
   @@index([userId, isRead])
 }
 
+model CompanySettings {
+  id        Int @id @default(1) // Або autoincrement(), якщо СТО багато
+  companyId Int @unique @default(1) // Зв'язок з компанією користувача
+
+  // Основне
+  companyName    String?
+  shortName      String?
+  serviceProfile String?
+  companyType    String?
+
+  // Робочий час
+  workSchedule        String?
+  workStart           String?
+  workEnd             String?
+  lunchEnabled        Boolean? @default(false)
+  lunchStart          String?
+  lunchEnd            String?
+  slotDuration        Int? // В хвилинах, наприклад 30 або 60
+  urgentOrdersEnabled Boolean? @default(false)
+
+  // Контакти та публічна інфа
+  publicDescription String?
+  addressLine       String?
+  city              String?
+  region            String?
+  postalCode        String?
+  phone             String?
+  additionalPhone   String?
+  email             String?
+  website           String?
+  mapsLink          String?
+  contactPerson     String?
+  clientNote        String?
+
+  // Реквізити
+  edrpou        String?
+  ipn           String?
+  iban          String?
+  bankName      String?
+  recipientName String?
+  legalAddress  String?
+  vatPayer      Boolean? @default(false)
+  invoiceNote   String?
+
+  updatedAt DateTime @updatedAt
+}
+
 enum UserRole {
   ADMIN
   MANAGER

@@ -17,8 +17,10 @@ import { PayrollModule } from './module/payroll/payroll.module';
 import { PaymentModule } from './module/payment/payment.module';
 import { ServicesModule } from './module/services/services.module';
 import { StripeModule } from './module/stripe/stripe.module';
+import { ReportsModule } from './reports/reports.module';
+import { CompaniesModule } from './module/companies/companies.module';
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, StripeModule, MailModule, NotificationsModule, ConfigModule.forRoot({ isGlobal: true }), ServiceRequestsModule, AppointmentsModule, CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule, ServicesModule],
+  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, StripeModule, MailModule, NotificationsModule, ConfigModule.forRoot({ isGlobal: true }), ServiceRequestsModule, AppointmentsModule, CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule, ServicesModule, ReportsModule, CompaniesModule],
   controllers: [AppController],
   providers: [AppService],
 })
