@@ -31,6 +31,18 @@ export class CreateCarDto {
   color: string
 
   @IsOptional()
+  @IsString()
+  engine?: string;
+
+  @IsOptional()
+  @IsString()
+  fuelType?: string;
+
+  @IsOptional()
+  @IsString()
+  bodyClass?: string;
+
+  @IsOptional()
   @IsInt()
   userId?: number;
 }

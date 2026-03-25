@@ -40,16 +40,23 @@ export class CarsService {
 
   
   async findAll(userId: number, role: UserRole) {
-   if (role === 'CLIENT') {
+    
+    // 1. КЛІЄНТ: бачить тільки свої АКТИВНІ (не видалені) авто
+    if (role === 'CLIENT') {
       return this.prisma.car.findMany({
-        where: { userId },
+        where: { 
+          userId: userId,
+          deletedAt: null, // 👈 Ховаємо видалені
+        },
         orderBy: { createdAt: 'desc' },
       });
     }
 
-   if (role === 'MECHANIC') {
+    // 2. МЕХАНІК: бачить АКТИВНІ авто, в яких він є виконавцем замовлення
+    if (role === 'MECHANIC') {
       return this.prisma.car.findMany({
         where: {
+          deletedAt: null, // 👈 Ховаємо видалені
           orders: {
             some: { mechanicId: userId }
           }
@@ -62,15 +69,17 @@ export class CarsService {
       });
     }
 
+    // 3. АДМІН / МЕНЕДЖЕР: бачать всі АКТИВНІ авто на СТО
     return this.prisma.car.findMany({
+      where: {
+        deletedAt: null, // 👈 Ховаємо видалені навіть від адміна (щоб не смітити в таблиці)
+      },
       include: {
         user: { select: { firstName: true, lastName: true, phone: true } }
       },
       orderBy: { createdAt: 'desc' },
     });
-  
-  
-}
+  }
 
   async findOne(userId: number, carId: number, role: UserRole) {
     try {
@@ -114,24 +123,6 @@ export class CarsService {
       }
       throw new InternalServerErrorException('Помилка при оновленні автомобіля');
     }
-  }
-
-  async deleteCar(carId: number, userId?: number, userRole?: string) {
-    const car = await this.prisma.car.findUnique({ where: { id: carId } });
-    if (!car) throw new NotFoundException('Автомобиль не найден');
-    if (car.deletedAt) throw new BadRequestException('Автомобиль уже в архиве');
-
-    if (userRole === 'CLIENT' && car.userId !== userId) {
-      throw new ForbiddenException('Вы можете удалять только свои автомобили');
-    }
-
-    // Мягкое удаление
-    await this.prisma.car.update({
-      where: { id: carId },
-      data: { deletedAt: new Date() },
-    });
-
-    return { message: `Автомобиль ${car.brand} ${car.model} удален` };
   }
 
   async getCarHistory(carId: number, filters: GetCarHistoryDto) {
@@ -195,6 +186,9 @@ export class CarsService {
         color: car.color,
         currentMileage: car.mileage,
         owner: car.user ? `${car.user.firstName} ${car.user.lastName}` : 'Невідомо',
+        engine: car.engine,
+        fuelType: car.fuelType,
+        bodyClass: car.bodyClass,
       },
       totalOrders: history.length,
       // Рахуємо загальну суму, яку клієнт витратив на цю машину
@@ -211,6 +205,116 @@ export class CarsService {
         items: order.items // Тут лежать твої послуги та запчастини
       }))
     };
+    
+  }
+
+  async decodeVin(vin: string) {
+    if (!vin || vin.length !== 17) {
+      throw new BadRequestException('VIN-код має містити рівно 17 символів');
+    }
+
+    try {
+      const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+      const data = await response.json();
+      const results = data.Results;
+      
+      const getVar = (name: string) => {
+        const item = results.find((r: any) => r.Variable === name);
+        return item && item.Value && item.Value !== 'Not Applicable' ? item.Value : null;
+      };
+
+      // 1. Отримуємо сирі англійські дані
+      const rawFuelType = getVar('Fuel Type - Primary');
+      const rawBodyClass = getVar('Body Class');
+
+      // 2. Словник для типу пального
+      const translateFuel = (fuel: string | null) => {
+        if (!fuel) return null;
+        const f = fuel.toLowerCase();
+        if (f.includes('gasoline')) return 'Бензин';
+        if (f.includes('diesel')) return 'Дизель';
+        if (f.includes('electric')) return 'Електро';
+        if (f.includes('hybrid')) return 'Гібрид';
+        if (f.includes('liquefied petroleum gas') || f.includes('lpg')) return 'Газ (ГБО)';
+        if (f.includes('compressed natural gas') || f.includes('cng')) return 'Газ (Метан)';
+        return fuel; // Якщо щось невідоме, повертаємо як є
+      };
+
+      // 3. Словник для типу кузова
+      const translateBody = (body: string | null) => {
+        if (!body) return null;
+        const b = body.toLowerCase();
+        if (b.includes('sedan') || b.includes('saloon')) return 'Седан';
+        if (b.includes('suv') || b.includes('sport utility')) return 'Кросовер / Позашляховик';
+        if (b.includes('hatchback')) return 'Хетчбек';
+        if (b.includes('coupe')) return 'Купе';
+        if (b.includes('pickup')) return 'Пікап';
+        if (b.includes('wagon')) return 'Універсал';
+        if (b.includes('van') || b.includes('minivan')) return 'Мінівен / Фургон';
+        if (b.includes('convertible')) return 'Кабріолет';
+        return body; 
+      };
+
+      const engineLiters = getVar('Displacement (L)');
+
+      // 4. Формуємо фінальний об'єкт з перекладом
+      const decodedCar = {
+        vin: vin.toUpperCase(),
+        brand: getVar('Make'), // Залишаємо англійською (BMW, Nissan)
+        model: getVar('Model'), // Залишаємо англійською (X5, Juke)
+        year: parseInt(getVar('Model Year'), 10) || null,
+        engineVolume: engineLiters ? `${engineLiters} л.` : null, // Додаємо красиве "л."
+        fuelType: translateFuel(rawFuelType), // Перекладено!
+        bodyClass: translateBody(rawBodyClass), // Перекладено!
+      };
+
+      if (!decodedCar.brand) {
+        throw new BadRequestException('Не вдалося розшифрувати цей VIN-код. Перевірте правильність вводу.');
+      }
+
+      return decodedCar;
+    } catch (error) {
+      throw new BadRequestException('Помилка при розшифровці VIN-коду: ' + error.message);
+    }
+  }
+
+  async deleteCar(id: number, userId: number, role: string) {
+    // 1. Знаходимо авто і рахуємо, чи є в нього пов'язані документи
+    const car = await this.prisma.car.findUnique({
+      where: { id },
+      include: { 
+        _count: { 
+          select: { orders: true, serviceRequests: true } 
+        } 
+      }
+    });
+
+    // Якщо машини немає або вона ВЖЕ видалена (Soft Delete)
+    if (!car || car.deletedAt) {
+      throw new NotFoundException('Автомобіль не знайдено');
+    }
+
+    // 2. Перевірка прав доступу
+    if (role === 'CLIENT' && car.userId !== userId) {
+      throw new ForbiddenException('Ви не можете видалити чужий автомобіль');
+    }
+
+    // 3. РОЗУМНЕ ВИДАЛЕННЯ
+    const hasHistory = car._count.orders > 0 || car._count.serviceRequests > 0;
+
+    if (hasHistory) {
+      // Є історія -> М'яке видалення (ховаємо)
+      return this.prisma.car.update({
+        where: { id },
+        data: { deletedAt: new Date() }, // Записуємо час видалення
+      });
+    } else {
+      // Історії немає -> Повне фізичне видалення (стираємо)
+      return this.prisma.car.delete({
+        where: { id },
+      });
+    }
   }
 }
+
 

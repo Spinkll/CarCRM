@@ -11,6 +11,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { OrderStatus } from 'generated/prisma/enums';
 import type { Response } from 'express';
+import { CreateReviewDto } from 'src/dto/create-review.dto';
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('orders')
@@ -97,5 +98,21 @@ export class OrdersController {
     });
 
     res.end(buffer);
+  }
+
+  @Get(':id/review')
+  @UseGuards(AuthGuard('jwt'))
+  async getReview(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.getOrderReview(id);
+  }
+
+  @Post(':id/review')
+  @UseGuards(AuthGuard('jwt'), new RolesGuard(['CLIENT']))
+  async createReview(
+    @Req() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateReviewDto
+  ) {
+    return this.ordersService.createOrderReview(req.user.id, req.user.role, id, dto);
   }
 }

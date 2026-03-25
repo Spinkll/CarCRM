@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from 'src/db/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from 'src/dto/create-order.dto';
 import { AssignOrderDto } from 'src/dto/assign-order.dto';
@@ -6,6 +6,7 @@ import { CreateOrderItemDto } from 'src/dto/create-order-item.dto';
 import { OrderStatus, UserRole } from 'generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 import PDFDocument = require('pdfkit');
+import { CreateReviewDto } from 'src/dto/create-review.dto';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Очікує',
@@ -110,6 +111,7 @@ export class OrdersService {
       manager: { select: { id: true, firstName: true, lastName: true } },
       mechanic: { select: { id: true, firstName: true, lastName: true } },
       items: true,
+      review: true,
     };
 
     const where: any = {};
@@ -148,6 +150,7 @@ export class OrdersService {
         tasks: true,
         payments: true,
         history: { include: { changedBy: { select: { firstName: true, lastName: true } } }, orderBy: { timestamp: 'desc' } },
+        review: true,
       },
     });
 
@@ -565,6 +568,56 @@ export class OrdersService {
       doc.text('________________________', 350, signY + 15);
 
       doc.end();
+    });
+  }
+
+  async getOrderReview(orderId: number) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Замовлення не знайдено');
+
+    // Якщо відгуку немає, поверне null (що ідеально для фронтенду)
+    return this.prisma.review.findUnique({
+      where: { orderId: orderId },
+      include: {
+        client: { select: { firstName: true, lastName: true } }
+      }
+    });
+  }
+
+  async createOrderReview(userId: number, role: string, orderId: number, dto: CreateReviewDto) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { car: true }
+    });
+
+    if (!order) throw new NotFoundException('Замовлення не знайдено');
+
+    // Перевірка прав (клієнт може оцінити тільки своє авто)
+    if (role === 'CLIENT' && order.car.userId !== userId) {
+      throw new ForbiddenException('Ви можете залишити відгук лише на власне замовлення');
+    }
+
+    // Тільки закриті замовлення
+    if (order.status !== 'COMPLETED' && order.status !== 'PAID') {
+      throw new BadRequestException('Відгук можна залишити лише після завершення або оплати ремонту');
+    }
+
+    // Захист від подвійного відгуку
+    const existingReview = await this.prisma.review.findUnique({
+      where: { orderId: orderId }
+    });
+
+    if (existingReview) {
+      throw new ConflictException('Відгук для цього замовлення вже існує');
+    }
+
+    return this.prisma.review.create({
+      data: {
+        rating: dto.rating,
+        comment: dto.comment,
+        orderId: order.id,
+        clientId: order.car.userId,
+      }
     });
   }
 }

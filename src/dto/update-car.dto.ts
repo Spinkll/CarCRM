@@ -25,4 +25,20 @@ export class UpdateCarDto {
   @IsInt()
   @IsOptional()
   mileage?: number;
+
+  @IsString()
+  @IsOptional()
+  color?: string;
+
+  @IsString()
+  @IsOptional()
+  engine?: string;
+
+  @IsString()
+  @IsOptional()
+  fuelType?: string;
+
+  @IsString()
+  @IsOptional()
+  bodyClass?: string;
 }

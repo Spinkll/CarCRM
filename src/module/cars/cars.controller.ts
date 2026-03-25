@@ -41,6 +41,12 @@ export class CarsController {
     return this.carsService.findAll(req.user.id, req.user.role);
   }
 
+
+  @Get('decode-vin/:vin')
+  async decodeVin(@Param('vin') vin: string) {
+    return this.carsService.decodeVin(vin);
+  }
+
   @Get(':id')
   findOne(@Req() req, @Param('id', ParseIntPipe) id: number) {
     return this.carsService.findOne(req.user.id, id, req.user.role);

@@ -36,6 +36,7 @@ model User {
   notifications   Notification[]
   serviceRequests ServiceRequest[] @relation("ClientRequests")
   orderItems      OrderItem[]      @relation("MechanicWorks")
+  reviews         Review[]
 }
 
 model Car {
@@ -47,6 +48,10 @@ model Car {
   plate   String @unique
   mileage Int    @default(0)
   color   String
+
+  engine    String?
+  fuelType  String?
+  bodyClass String?
 
   deletedAt DateTime?
 
@@ -111,6 +116,7 @@ model Order {
   tasks          Task[]
   appointments   Appointment[]
   serviceRequest ServiceRequest?
+  review         Review?
 }
 
 model Appointment {
@@ -278,6 +284,20 @@ model CompanySettings {
   invoiceNote   String?
 
   updatedAt DateTime @updatedAt
+}
+
+model Review {
+  id      Int     @id @default(autoincrement())
+  rating  Int
+  comment String?
+
+  orderId Int   @unique
+  order   Order @relation(fields: [orderId], references: [id])
+
+  clientId Int
+  client   User @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
 }
 
 enum UserRole {
