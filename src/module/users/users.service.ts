@@ -174,12 +174,25 @@ if (existingUser) {
     });
   }
 
-  async findAllByRoles(roles: UserRole[]) {
+  async findAllByRoles(roles: UserRole[], mechanicId?: number) {
+    const where: any = { role: { in: roles } };
+
+    if (mechanicId) {
+      where.cars = {
+        some: {
+          orders: {
+            some: { mechanicId }
+          }
+        }
+      };
+    }
+
     return this.prisma.user.findMany({
-      where: { role: { in: roles } },
+      where,
       select: { 
         id: true, firstName: true, lastName: true, email: true, phone: true, role: true, createdAt: true, commissionRate: true, baseSalary:true, isBlocked:true 
       },
+      distinct: ['id'],
       orderBy: { createdAt: 'desc' }
     });
   }
@@ -227,7 +240,10 @@ if (existingUser) {
     return this.findAllByRoles([UserRole.ADMIN, UserRole.MANAGER, UserRole.MECHANIC]);
   }
   
-  async findCustomers() {
+  async findCustomers(userId?: number, role?: string) {
+    if (role === 'MECHANIC') {
+      return this.findAllByRoles([UserRole.CLIENT], userId);
+    }
     return this.findAllByRoles([UserRole.CLIENT]);
   }
 

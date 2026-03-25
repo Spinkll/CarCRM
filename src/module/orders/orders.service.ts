@@ -178,7 +178,7 @@ export class OrdersService {
         data: {
           orderId: id,
           changedById: userId,
-          action: 'STATUS_CHANGE',
+          action: 'STATUS_UPDATED',
           oldValue: oldStatus,
           newValue: dto.status,
           comment: `Статус змінено: ${STATUS_LABELS[oldStatus] || oldStatus} → ${STATUS_LABELS[dto.status] || dto.status}`,
@@ -273,7 +273,7 @@ export class OrdersService {
         data: {
           orderId,
           changedById: userId,
-          action: 'ASSIGNMENT_CHANGE',
+          action: 'TEAM_ASSIGNED',
           comment: changes.join('; '),
         },
       });

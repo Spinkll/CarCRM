@@ -41,8 +41,8 @@ export class UsersController {
     
   @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER','MECHANIC']))
   @Get('customers')
-  async getCustomers() {
-    return this.usersService.findCustomers();
+  async getCustomers(@Req() req) {
+    return this.usersService.findCustomers(req.user.id, req.user.role);
   }
 
   @UseGuards(AuthGuard('jwt'), new RolesGuard(['ADMIN', 'MANAGER']))

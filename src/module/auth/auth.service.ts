@@ -72,7 +72,8 @@ export class AuthService {
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
-        isVerified: user.isVerified
+        isVerified: user.isVerified,
+        phone: user.phone
       },
     };
   }
@@ -110,6 +111,7 @@ export class AuthService {
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
+        phone: user.phone
       },
     };
   }
