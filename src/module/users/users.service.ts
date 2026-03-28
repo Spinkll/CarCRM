@@ -20,20 +20,45 @@ export class UsersService {
     async createUser(dto: RegisterDto) {
     const { email, password, firstName, lastName,phone } = dto;
 
-    const existingUser = await this.prisma.user.findFirst({
-  where: {
-    OR: [
-      { email: dto.email },
-      { phone: dto.phone }
-    ]
-  }
-    } );
-if (existingUser) {
-  throw new ConflictException('Користувач з таким email або телефоном вже існує');
-}
+    // Перевіряємо чи існує юзер з таким email або телефоном
+    const existingByEmail = await this.prisma.user.findFirst({ where: { email: dto.email } });
+    const existingByPhone = dto.phone
+      ? await this.prisma.user.findFirst({ where: { phone: dto.phone } })
+      : null;
+
+    // Якщо email вже зайнятий реальним юзером — помилка
+    if (existingByEmail) {
+      throw new ConflictException('Користувач з таким email вже існує');
+    }
+
+    // Якщо телефон вже є — перевіряємо чи це тимчасовий юзер (зі швидкого запису)
+    if (existingByPhone) {
+      const isTempUser = existingByPhone.email?.startsWith('temp-') && existingByPhone.email?.endsWith('@placeholder.local');
+
+      if (isTempUser) {
+        // Оновлюємо тимчасовий акаунт реальними даними клієнта
+        const rawPassword = dto.password || crypto.randomBytes(4).toString('hex');
+        const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+        const upgradedUser = await this.prisma.user.update({
+          where: { id: existingByPhone.id },
+          data: {
+            email,
+            password: hashedPassword,
+            firstName,
+            lastName,
+            isVerified: false,
+          },
+        });
+
+        return upgradedUser;
+      }
+
+      throw new ConflictException('Користувач з таким телефоном вже існує');
+    }
 
     const rawPassword = dto.password || crypto.randomBytes(4).toString('hex');
-    const hashedPassword = await bcrypt.hash(rawPassword, 10);;
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
     const user = await this.prisma.user.create({
         data: {
@@ -45,12 +70,6 @@ if (existingUser) {
         role: 'CLIENT', 
       },
     });
-
-    //    try {
-    //    await this.mailService.sendUserPassword(user.email, user.firstName, rawPassword);
-    //  } catch (e) {
-    //    console.error(`Failed to send email to client ${user.email}:`, e);
-    //    }
       
     return user;
   }

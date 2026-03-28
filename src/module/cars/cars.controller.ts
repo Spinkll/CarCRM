@@ -33,7 +33,7 @@ export class CarsController {
       targetOwnerId = createCarDto.userId;
     } 
     
-    return this.carsService.create(targetOwnerId, createCarDto);
+    return this.carsService.create(targetOwnerId, userRole, createCarDto);
   }
 
   @Get()

@@ -6,9 +6,7 @@ import {
   BadRequestException,
   ForbiddenException
 } from '@nestjs/common';
-import { Prisma } from 'generated/prisma/browser';
-
-import { UserRole } from 'generated/prisma/client';
+import { Prisma, UserRole } from 'generated/prisma/client';
 import { PrismaClientKnownRequestError } from 'generated/prisma/internal/prismaNamespace';
 import { PrismaService } from 'src/db/prisma.service';
 import { CreateCarDto } from 'src/dto/create-car.dto';
@@ -20,7 +18,25 @@ import { UpdateCarDto } from 'src/dto/update-car.dto';
 export class CarsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: number, dto: CreateCarDto) {
+  async create(userId: number, role: string, dto: CreateCarDto) {
+    // Якщо клієнт намагається додати авто, перевіряємо чи немає в нього "тимчасових" машин
+    if (role === 'CLIENT') {
+      const hasTempCar = await this.prisma.car.findFirst({
+        where: {
+          userId: userId,
+          OR: [
+            { vin: { startsWith: 'TEMP-' } },
+            { plate: { startsWith: 'TEMP-' } },
+            { year: 0 }
+          ]
+        }
+      });
+
+      if (hasTempCar) {
+        throw new BadRequestException('Ви не можете додати новий автомобіль, поки не заповните дані про свій існуючий (VIN, номер, рік).');
+      }
+    }
+
     try {
       return await this.prisma.car.create({
         data: {
@@ -31,7 +47,9 @@ export class CarsService {
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
-          throw new ConflictException('Транспортний засіб з таким VIN-кодом або номерним знаком вже існує.');
+          const target = (error.meta?.target as any) || [];
+          const field = Array.isArray(target) ? target.join(', ') : target;
+          throw new ConflictException(`Транспортний засіб з таким ${field || 'VIN-кодом або номерним знаком'} вже існує в базі.`);
         }
       }
       throw new InternalServerErrorException('Помилка при створенні автомобіля');
@@ -40,23 +58,24 @@ export class CarsService {
 
   
   async findAll(userId: number, role: UserRole) {
-    
-    // 1. КЛІЄНТ: бачить тільки свої АКТИВНІ (не видалені) авто
-    if (role === 'CLIENT') {
+    const userRole = (role?.toString() || '').toUpperCase();
+
+    // 1. КЛІЄНТ: бачить тільки свої АКТИВНІ авто
+    if (userRole === 'CLIENT') {
       return this.prisma.car.findMany({
         where: { 
           userId: userId,
-          deletedAt: null, // 👈 Ховаємо видалені
+          deletedAt: null,
         },
         orderBy: { createdAt: 'desc' },
       });
     }
 
     // 2. МЕХАНІК: бачить АКТИВНІ авто, в яких він є виконавцем замовлення
-    if (role === 'MECHANIC') {
+    if (userRole === 'MECHANIC') {
       return this.prisma.car.findMany({
         where: {
-          deletedAt: null, // 👈 Ховаємо видалені
+          deletedAt: null,
           orders: {
             some: { mechanicId: userId }
           }
@@ -72,7 +91,7 @@ export class CarsService {
     // 3. АДМІН / МЕНЕДЖЕР: бачать всі АКТИВНІ авто на СТО
     return this.prisma.car.findMany({
       where: {
-        deletedAt: null, // 👈 Ховаємо видалені навіть від адміна (щоб не смітити в таблиці)
+        deletedAt: null,
       },
       include: {
         user: { select: { firstName: true, lastName: true, phone: true } }
@@ -85,7 +104,9 @@ export class CarsService {
     try {
       const whereClause: any = { id: carId };
       
-      if (role !== 'ADMIN' && role !== 'MANAGER') {
+      const userRole = (role?.toString() || '').toUpperCase();
+      
+      if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
         whereClause.userId = userId;
       }
 
@@ -105,7 +126,19 @@ export class CarsService {
   }
 
   async update(userId: number, carId: number, dto: UpdateCarDto, role: UserRole) {
-    await this.findOne(userId, carId, role);
+    const car = await this.findOne(userId, carId, role);
+
+    const userRole = (role?.toString() || '').toUpperCase();
+
+    // CLIENT може оновлювати тільки свої авто
+    if (userRole === 'CLIENT' && car.userId !== userId) {
+      throw new ForbiddenException('Ви не можете редагувати чужий автомобіль');
+    }
+
+    // CLIENT не може змінювати пробіг — тільки ADMIN/MANAGER
+    if (userRole === 'CLIENT') {
+      delete dto.mileage;
+    }
 
     try {
       return await this.prisma.car.update({
@@ -115,7 +148,9 @@ export class CarsService {
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
-          throw new ConflictException('Транспортний засіб з таким VIN-кодом вже існує.');
+          const target = (error.meta?.target as any) || [];
+          const field = Array.isArray(target) ? target.join(', ') : target;
+          throw new ConflictException(`Транспортний засіб з таким ${field || 'VIN-кодом або номерним знаком'} вже існує в базі.`);
         }
         if (error.code === 'P2025') {
           throw new NotFoundException('Машину для оновлення не знайдено.');
@@ -128,7 +163,7 @@ export class CarsService {
   async getCarHistory(carId: number, filters: GetCarHistoryDto) {
     // 1. Перевіряємо, чи існує автомобіль і чи не видалений він
     const car = await this.prisma.car.findUnique({
-      where: { id: carId, deletedAt: null },
+      where: { id: carId },
       include: { user: true } // Одразу підтягнемо власника для шапки
     });
 
@@ -139,7 +174,6 @@ export class CarsService {
     // 2. Збираємо динамічні фільтри для замовлень
     const whereClause: Prisma.OrderWhereInput = {
       carId: carId,
-      deletedAt: null, // Ігноруємо видалені замовлення
       // Можеш додати статус, якщо хочеш показувати ТІЛЬКИ завершені:
       // status: 'COMPLETED',
     };
@@ -202,7 +236,10 @@ export class CarsService {
         description: order.description,
         totalAmount: Number(order.totalAmount), // Prisma Decimal треба перетворити в Number для JSON
         mechanic: order.mechanic,
-        items: order.items // Тут лежать твої послуги та запчастини
+        items: order.items.map(item => ({
+          ...item,
+          price: Number(item.price)
+        }))
       }))
     };
     
@@ -289,8 +326,8 @@ export class CarsService {
       }
     });
 
-    // Якщо машини немає або вона ВЖЕ видалена (Soft Delete)
-    if (!car || car.deletedAt) {
+    // Якщо машини немає
+    if (!car) {
       throw new NotFoundException('Автомобіль не знайдено');
     }
 

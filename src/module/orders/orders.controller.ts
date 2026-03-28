@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from 'src/dto/create-order.dto';
+import { CreateQuickOrderDto } from 'src/dto/create-quick-order.dto';
 import { AssignOrderDto } from 'src/dto/assign-order.dto';
 import { CreateOrderItemDto } from 'src/dto/create-order-item.dto';
 import { AuthGuard } from '@nestjs/passport';
@@ -17,6 +18,12 @@ import { CreateReviewDto } from 'src/dto/create-review.dto';
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) { }
+
+  @Post('quick')
+  @UseGuards(new RolesGuard(['ADMIN', 'MANAGER']))
+  quickCreate(@Req() req, @Body() dto: CreateQuickOrderDto) {
+    return this.ordersService.quickCreate(req.user.id, dto);
+  }
 
   @Post()
   create(@Req() req, @Body() dto: CreateOrderDto) {

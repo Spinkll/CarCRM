@@ -3,10 +3,13 @@ import { PrismaService } from 'src/db/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from 'src/dto/create-order.dto';
 import { AssignOrderDto } from 'src/dto/assign-order.dto';
 import { CreateOrderItemDto } from 'src/dto/create-order-item.dto';
+import { CreateQuickOrderDto } from 'src/dto/create-quick-order.dto';
 import { OrderStatus, UserRole } from 'generated/prisma/enums';
 import { NotificationsService } from '../notifications/notifications.service';
 import PDFDocument = require('pdfkit');
 import { CreateReviewDto } from 'src/dto/create-review.dto';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Очікує',
@@ -28,6 +31,25 @@ export class OrdersService {
   async create(userId: number, role: UserRole, dto: CreateOrderDto) {
     const car = await this.prisma.car.findUnique({ where: { id: dto.vehicleId } });
     if (!car) throw new NotFoundException('Автомобіль не знайдено');
+
+    // Перевірка на тимчасові авто
+    if (role === 'CLIENT') {
+      const hasTempCar = await this.prisma.car.findFirst({
+        where: {
+          userId: userId,
+          deletedAt: null,
+          OR: [
+            { vin: { startsWith: 'TEMP-' } },
+            { plate: { startsWith: 'TEMP-' } },
+            { year: 0 }
+          ]
+        }
+      });
+
+      if (hasTempCar) {
+        throw new BadRequestException('Ви не можете створити нове замовлення, поки не заповните дані про свій існуючий автомобіль (VIN, номер, рік).');
+      }
+    }
 
     // Перевірка прав
     if (role === 'CLIENT' && car.userId !== Number(userId)) {
@@ -100,6 +122,102 @@ export class OrdersService {
     return order;
   }
 
+  async quickCreate(managerId: number, dto: CreateQuickOrderDto) {
+    const ts = Date.now();
+    const rnd = crypto.randomBytes(3).toString('hex'); // extra uniqueness
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Нормалізуємо вхідний телефон до цифр
+      const inputDigits = dto.clientPhone.replace(/\D/g, '');
+      const last10 = inputDigits.slice(-10);
+
+      // 2. Шукаємо існуючого клієнта — порівнюємо останні 10 цифр
+      const allClients = await tx.user.findMany({
+        where: { role: 'CLIENT' },
+        select: { id: true, phone: true, firstName: true, lastName: true },
+      });
+
+      let client = allClients.find((c) => {
+        const dbDigits = (c.phone || '').replace(/\D/g, '');
+        return dbDigits === inputDigits || (last10.length >= 10 && dbDigits.endsWith(last10));
+      }) as any;
+
+      // 3. Якщо клієнта немає — створюємо з мінімальними даними
+      if (!client) {
+        const nameParts = dto.clientName.trim().split(/\s+/);
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(' ') || 'Невідомо';
+        const tempEmail = `temp-${ts}@placeholder.local`;
+        const rawPassword = crypto.randomBytes(4).toString('hex');
+        const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+        client = await tx.user.create({
+          data: {
+            firstName,
+            lastName,
+            phone: dto.clientPhone,
+            email: tempEmail,
+            password: hashedPassword,
+            role: 'CLIENT',
+            isVerified: false,
+          },
+        });
+      }
+
+      // 4. Створюємо авто з placeholder-ами для обов'язкових полів
+      const car = await tx.car.create({
+        data: {
+          brand: dto.carBrand,
+          model: dto.carModel || 'Невідомо',
+          year: 0,
+          vin: `TEMP-${ts}-${rnd}`,
+          plate: `TEMP-${ts}-${rnd}`,
+          color: 'Невідомо',
+          mileage: 0,
+          userId: client.id,
+        },
+      });
+
+      // 4. Створюємо замовлення
+      const order = await tx.order.create({
+        data: {
+          carId: car.id,
+          managerId,
+          mileage: 0,
+          description: dto.description,
+          totalAmount: 0,
+          status: 'CONFIRMED',
+        },
+      });
+
+      // 5. Створюємо запис у календарі (якщо є час)
+      if (dto.scheduledAt) {
+        await tx.appointment.create({
+          data: {
+            orderId: order.id,
+            scheduledAt: new Date(dto.scheduledAt),
+            estimatedMin: dto.estimatedMin || 60,
+            status: 'SCHEDULED',
+          },
+        });
+      }
+
+      // 6. Записуємо історію
+      await tx.orderHistory.create({
+        data: {
+          orderId: order.id,
+          changedById: managerId,
+          action: 'ORDER_CREATED',
+          comment: `Швидкий запис: ${dto.clientName}, ${dto.carBrand}${dto.carModel ? ' ' + dto.carModel : ''} — "${dto.description}"`,
+        },
+      });
+
+      return { order, car, client };
+    });
+
+    return result.order;
+  }
+
   async findAll(userId: number, role: UserRole, filters?: {
     status?: OrderStatus;
     mechanicId?: number;
@@ -124,11 +242,13 @@ export class OrdersService {
       if (filters.to) where.createdAt.lte = new Date(filters.to);
     }
 
-    if (role === UserRole.ADMIN || role === UserRole.MANAGER) {
+    const userRole = (role?.toString() || '').toUpperCase();
+
+    if (userRole === 'ADMIN' || userRole === 'MANAGER') {
       return this.prisma.order.findMany({ where, include: includeOptions, orderBy: { createdAt: 'desc' } });
     }
 
-    if (role === UserRole.MECHANIC) {
+    if (userRole === 'MECHANIC') {
       return this.prisma.order.findMany({ where: { ...where, mechanicId: userId }, include: includeOptions, orderBy: { createdAt: 'desc' } });
     }
 
