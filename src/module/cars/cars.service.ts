@@ -252,17 +252,45 @@ export class CarsService {
 
     try {
       const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+      if (!response.ok) {
+        throw new Error(`NHTSA API returned HTTP ${response.status}`);
+      }
       const data = await response.json();
-      const results = data.Results;
+      const results = data.Results || [];
       
       const getVar = (name: string) => {
         const item = results.find((r: any) => r.Variable === name);
-        return item && item.Value && item.Value !== 'Not Applicable' ? item.Value : null;
+        if (!item || !item.Value) return null;
+        const v = String(item.Value).trim();
+        // Перевіряємо різні варіанти порожніх або недоступних значень
+        if (['Not Applicable', 'Not Available', 'None', '', 'null', '(S)'].includes(v)) return null;
+        return v;
       };
+
+      // 0. Перевірка кодів помилок від NHTSA
+      const errorCode = getVar('Error Code');
+      const errorText = getVar('Error Text');
+
+      // Якщо errorCode не "0" (успіх), розбираємось з причиною
+      if (errorCode && errorCode !== '0') {
+        // 1, 6, 11 — типи невірних VIN або помилок вводу
+        if (['1', '6', '11'].includes(errorCode)) {
+          throw new BadRequestException(`Цей VIN-код некоректний: ${errorText || 'перевірте правильність вводу.'}`);
+        }
+        // 7, 8 — VIN валідний, але даних в NHTSA немає (актуально для європейських авто)
+        if (['7', '8'].includes(errorCode)) {
+          throw new BadRequestException('У міжнародній базі знайдено VIN, але детальні технічні характеристики відсутні. Будь ласка, введіть дані автомобіля вручну.');
+        }
+      }
 
       // 1. Отримуємо сирі англійські дані
       const rawFuelType = getVar('Fuel Type - Primary');
       const rawBodyClass = getVar('Body Class');
+      const brand = getVar('Make');
+      const model = getVar('Model');
+      const rawYear = getVar('Model Year');
+      const year = rawYear ? parseInt(rawYear, 10) : null;
+      const engineLiters = getVar('Displacement (L)');
 
       // 2. Словник для типу пального
       const translateFuel = (fuel: string | null) => {
@@ -274,7 +302,7 @@ export class CarsService {
         if (f.includes('hybrid')) return 'Гібрид';
         if (f.includes('liquefied petroleum gas') || f.includes('lpg')) return 'Газ (ГБО)';
         if (f.includes('compressed natural gas') || f.includes('cng')) return 'Газ (Метан)';
-        return fuel; // Якщо щось невідоме, повертаємо як є
+        return fuel; 
       };
 
       // 3. Словник для типу кузова
@@ -292,25 +320,24 @@ export class CarsService {
         return body; 
       };
 
-      const engineLiters = getVar('Displacement (L)');
-
-      // 4. Формуємо фінальний об'єкт з перекладом
-      const decodedCar = {
-        vin: vin.toUpperCase(),
-        brand: getVar('Make'), // Залишаємо англійською (BMW, Nissan)
-        model: getVar('Model'), // Залишаємо англійською (X5, Juke)
-        year: parseInt(getVar('Model Year'), 10) || null,
-        engineVolume: engineLiters ? `${engineLiters} л.` : null, // Додаємо красиве "л."
-        fuelType: translateFuel(rawFuelType), // Перекладено!
-        bodyClass: translateBody(rawBodyClass), // Перекладено!
-      };
-
-      if (!decodedCar.brand) {
-        throw new BadRequestException('Не вдалося розшифрувати цей VIN-код. Перевірте правильність вводу.');
+      // Якщо марка не знайдена, вважаємо що розшифровка не вдалася
+      if (!brand) {
+        throw new BadRequestException('Не вдалося розшифрувати цей VIN-код у міжнародній системі. Ви можете заповнити дані вручну.');
       }
 
-      return decodedCar;
+      // 4. Формуємо фінальний об'єкт
+      return {
+        vin: vin.toUpperCase(),
+        brand: brand, 
+        model: model, 
+        year: year,
+        engine: engineLiters ? `${engineLiters} л.` : null, // Поле для БД
+        engineVolume: engineLiters ? `${engineLiters} л.` : null, // Сумісність з фронтендом
+        fuelType: translateFuel(rawFuelType), 
+        bodyClass: translateBody(rawBodyClass), 
+      };
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       throw new BadRequestException('Помилка при розшифровці VIN-коду: ' + error.message);
     }
   }

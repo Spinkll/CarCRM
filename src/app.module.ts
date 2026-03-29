@@ -19,8 +19,29 @@ import { ServicesModule } from './module/services/services.module';
 import { StripeModule } from './module/stripe/stripe.module';
 import { ReportsModule } from './reports/reports.module';
 import { CompaniesModule } from './module/companies/companies.module';
+import { ScheduleModule } from '@nestjs/schedule';
 @Module({
-  imports: [UsersModule, AuthModule, PrismaModule, CarsModule, OrdersModule, StripeModule, MailModule, NotificationsModule, ConfigModule.forRoot({ isGlobal: true }), ServiceRequestsModule, AppointmentsModule, CatalogModule, InventoryModule, InventoryModule, PayrollModule, PaymentModule, ServicesModule, ReportsModule, CompaniesModule],
+  imports: [
+    UsersModule,
+    AuthModule,
+    PrismaModule,
+    CarsModule,
+    OrdersModule,
+    StripeModule,
+    MailModule,
+    NotificationsModule,
+    ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
+    ServiceRequestsModule,
+    AppointmentsModule,
+    CatalogModule,
+    InventoryModule,
+    PayrollModule,
+    PaymentModule,
+    ServicesModule,
+    ReportsModule,
+    CompaniesModule
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

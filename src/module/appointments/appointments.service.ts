@@ -181,4 +181,67 @@ export class AppointmentsService {
 
     return availableSlots;
   }
+
+  // 🔄 АВТОМАТИЗАЦІЯ: Скасування замовлень, якщо клієнт не приїхав
+  @Cron(CronExpression.EVERY_HOUR)
+  async handleMissedAppointments() {
+    const now = new Date();
+    // Даємо буфер 1 годину після запланованого часу
+    const threshold = new Date(now.getTime() - 60 * 60 * 1000);
+
+    const missed = await this.prisma.appointment.findMany({
+      where: {
+        scheduledAt: { lt: threshold },
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+      },
+      include: {
+        order: {
+          include: { car: true }
+        }
+      }
+    });
+
+    if (missed.length === 0) return;
+
+    console.log(`[Cron] Обробка ${missed.length} пропущених записів...`);
+
+    for (const app of missed) {
+      await this.prisma.$transaction(async (tx) => {
+        // 1. Оновлюємо статус запису на NO_SHOW
+        await tx.appointment.update({
+          where: { id: app.id },
+          data: { status: 'NO_SHOW' }
+        });
+
+        // 2. Скасовуємо пов'язане замовлення
+        await tx.order.update({
+          where: { id: app.orderId },
+          data: { status: 'CANCELLED' }
+        });
+
+        // 3. Записуємо в історію замовлення
+        await tx.orderHistory.create({
+          data: {
+            orderId: app.orderId,
+            changedById: 0, // 0 або системний ID бота/крона
+            action: 'AUTO_CANCELLED',
+            comment: `Замовлення скасовано автоматично через неявку клієнта (запис на ${app.scheduledAt.toLocaleString()})`,
+          }
+        });
+
+        // 4. Сповіщаємо клієнта
+        if (app.order?.car?.userId) {
+          await this.notifications.create(
+            app.order.car.userId,
+            'Замовлення скасовано',
+            `Ваш візит на ${app.scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} не відбувся. Замовлення #${app.orderId} автоматично скасовано.`,
+            'AUTO_CANCELLED',
+            app.orderId
+          ).catch(e => console.error('Error sending notification:', e));
+        }
+      });
+    }
+
+    console.log(`[Cron] Завершено скасування ${missed.length} замовлень.`);
+  }
 }

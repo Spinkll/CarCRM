@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, IsDateString, Matches } from 'class-validator';
 
 export class CreateQuickOrderDto {
   @IsString()
@@ -7,6 +7,7 @@ export class CreateQuickOrderDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+/, { message: 'Номер телефону повинен починатися з +' })
   clientPhone: string;
 
   @IsString()

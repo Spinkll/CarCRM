@@ -283,16 +283,37 @@ export class OrdersService {
   async updateStatus(userId: number, id: number, dto: UpdateOrderStatusDto) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: { car: { select: { userId: true } } }
+      include: {
+        car: { select: { userId: true } },
+        appointments: true,
+      }
     });
     if (!order) throw new NotFoundException('Замовлення не знайдено');
 
+    const actor = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     const oldStatus = order.status;
+
+    // ОБМЕЖЕННЯ: Відновлювати скасоване замовлення може тільки Співробітник
+    if (oldStatus === OrderStatus.CANCELLED && dto.status !== OrderStatus.CANCELLED) {
+      if (actor?.role === UserRole.CLIENT) {
+        throw new ForbiddenException('Клієнт не може самостійно відновлювати скасоване замовлення. Зверніться до адміністратора.');
+      }
+    }
 
     const updatedOrder = await this.prisma.$transaction(async (tx) => {
       const data: any = { status: dto.status };
+
       if (dto.status === OrderStatus.COMPLETED && !order.completedAt) {
         data.completedAt = new Date();
+      }
+
+      // Якщо замовлення "оживає" зі скасованого
+      if (oldStatus === OrderStatus.CANCELLED && (dto.status === OrderStatus.CONFIRMED || dto.status === OrderStatus.IN_PROGRESS)) {
+        // Оновлюємо також статус запису в календарі, якщо він був пропущений
+        await tx.appointment.updateMany({
+          where: { orderId: id, status: 'NO_SHOW' },
+          data: { status: 'SCHEDULED' }
+        });
       }
 
       const result = await tx.order.update({ where: { id }, data });
@@ -304,7 +325,9 @@ export class OrdersService {
           action: 'STATUS_UPDATED',
           oldValue: oldStatus,
           newValue: dto.status,
-          comment: `Статус змінено: ${STATUS_LABELS[oldStatus] || oldStatus} → ${STATUS_LABELS[dto.status] || dto.status}`,
+          comment: oldStatus === OrderStatus.CANCELLED
+            ? `Замовлення ВІДНОВЛЕНО: ${STATUS_LABELS[dto.status] || dto.status}`
+            : `Статус змінено: ${STATUS_LABELS[oldStatus] || oldStatus} → ${STATUS_LABELS[dto.status] || dto.status}`,
         },
       });
 
@@ -321,7 +344,7 @@ export class OrdersService {
     if (notifyIds.size > 0) {
       this.notifications.notifyMany(
         Array.from(notifyIds),
-        'Статус замовлення змінено',
+        oldStatus === OrderStatus.CANCELLED ? 'Замовлення відновлено' : 'Статус замовлення змінено',
         `Замовлення #${id} перейшло у статус: ${STATUS_LABELS[dto.status] || dto.status}`,
         'STATUS_CHANGED',
         id,

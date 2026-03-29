@@ -39,8 +39,8 @@ export class AccessTokenStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     // Якщо все добре, повертаємо те, що піде в req.user
     return {
-      id: payload.sub,
-      role: payload.role,
+      id: user.id,
+      role: user.role,
     };
   }
 }
